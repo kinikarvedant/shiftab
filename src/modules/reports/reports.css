@@ -1,0 +1,95 @@
+/* Reports. Layout reacts to the page width (container "rp"), not the viewport, so the sidebar doesn't matter. */
+.reports { container: rp / inline-size; }
+.rp-week { margin-bottom: var(--space-5); }
+.rp-week h2 { font-variant-numeric: tabular-nums; }
+.rp-body { transition: opacity var(--dur-base) var(--ease); }
+.rp-body[aria-busy='true'] { opacity: .6; } /* refetch keeps the frame */
+.rp-cell { display: inline-flex; align-items: center; gap: var(--space-2); }
+.reports table.data td > svg { width: 1em; height: 1em; vertical-align: -0.125em; margin-right: .3em; }
+
+/* ---------- KPI tiles ---------- */
+.rp-kpis { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
+.rp-kpis .kpi { display: flex; flex-direction: column; gap: var(--space-1); }
+.rp-kpis .value svg { width: .7em; height: .7em; margin-right: .2em; vertical-align: -0.05em; }
+.rp-today { margin-top: auto; padding-top: var(--space-1); }
+.rp-today strong { color: var(--text); font-variant-numeric: tabular-nums; }
+@container rp (max-width: 36rem) {
+  /* phones: one compact row per figure */
+  .rp-kpis { grid-template-columns: 1fr; gap: var(--space-2); }
+  .rp-kpis .kpi { display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+  .rp-kpis .kpi .value { font-size: var(--fs-lg); text-align: right; }
+  .rp-kpis .kpi > :not(.label, .value) { grid-column: 1 / -1; }
+}
+
+/* ---------- chart ----------
+   Revenue = brand accent, labour cost = neutral grey: an emphasis pair (one hue + one grey), so it
+   re-themes with any accent and stays apart under colour-blindness by lightness/chroma, not hue.
+   Tokens only; identity is also carried by bar position, the legend, the tooltip and the ledger table. */
+.rp-chart { --c-rev: var(--accent); --c-lab: var(--border-strong); }
+.rp-chart .rev { --c: var(--c-rev); }
+.rp-chart .lab { --c: var(--c-lab); }
+.rp-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); }
+.rp-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
+.rp-legend i { width: .75rem; height: .75rem; border-radius: var(--radius-xs); background: var(--c); }
+
+.rp-scroll { overflow-x: auto; padding-top: var(--space-3); } /* narrow phones scroll sideways */
+.rp-plot { display: grid; grid-template-columns: max-content; grid-auto-columns: minmax(3.75rem, 1fr); grid-template-rows: 14rem auto; min-width: 32rem; }
+.rp-yaxis { grid-area: 1 / 1; display: flex; flex-direction: column-reverse; justify-content: space-between; padding-right: var(--space-2);
+  font-size: var(--fs-xs); color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+.rp-yaxis span { height: 0; line-height: 0; white-space: nowrap; }
+.rp-grid { grid-row: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.rp-grid i { border-top: 1px solid var(--border); }
+.rp-grid i:last-child { border-top-color: var(--border-strong); } /* baseline */
+.rp-bars { grid-row: 1; position: relative; display: flex; align-items: flex-end; justify-content: center; gap: .125rem; padding: 0 var(--space-1);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.rp-bars > i { flex: 0 1 1.5rem; background: var(--c); border-radius: var(--radius-xs) var(--radius-xs) 0 0; }
+.rp-bars.today { background: var(--state-hover); }
+.rp-bars:hover { background: var(--state-press); }
+.rp-x { grid-row: 2; display: flex; flex-direction: column; align-items: center; gap: .2rem; padding: var(--space-2) var(--space-1) 0;
+  font-size: var(--fs-xs); text-align: center; font-variant-numeric: tabular-nums; }
+.rp-x svg { width: 1em; height: 1em; vertical-align: -0.125em; margin-right: .2em; }
+
+/* hover readout (pointer only; the ledger table is the keyboard / screen-reader equivalent) */
+.rp-tip { display: none; position: absolute; z-index: 2; top: 0; left: 50%; translate: -50% 0; flex-direction: column; gap: .15rem;
+  padding: var(--space-2) var(--space-3); background: var(--surface-3); color: var(--text); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-2); font-size: var(--fs-sm); white-space: nowrap; pointer-events: none; }
+.rp-bars.start .rp-tip { left: 0; translate: none; }
+.rp-bars.end .rp-tip { left: auto; right: 0; translate: none; }
+.rp-bars:hover .rp-tip { display: flex; }
+.rp-tip > span { display: flex; align-items: center; gap: var(--space-2); }
+.rp-tip b { font-variant-numeric: tabular-nums; }
+.rp-tip i { flex: none; width: .75rem; height: .1875rem; border-radius: var(--radius-xs); background: var(--c, transparent); }
+
+@media (forced-colors: active) {
+  .rp-chart .rev, .rp-chart .lab { forced-color-adjust: none; }
+  .rp-chart .rev { background: CanvasText; }
+  .rp-chart .lab { background: GrayText; }
+}
+
+/* ---------- payroll + tender mix ---------- */
+.rp-split { display: grid; gap: var(--space-5); }
+@container rp (min-width: 75rem) { .rp-split { grid-template-columns: 2fr 1fr; align-items: start; } }
+
+.rp-sk { border-radius: var(--radius-md); }
+.rp-sk.kpi-h { height: 6.5rem; }
+.rp-sk.chart-h { height: 20rem; }
+.rp-sk.table-h { height: 16rem; }
+
+/* ---------- print / PDF: header, KPIs, ledger, payroll, tender mix ---------- */
+@media print {
+  .reports { container-type: normal; }
+  .rp-body[aria-busy='true'] { opacity: 1; }
+  .rp-week { margin-bottom: var(--space-3); }
+  .rp-kpis { grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
+  .rp-kpis .kpi { padding: var(--space-2) var(--space-3); }
+  .rp-kpis .kpi .value { font-size: var(--fs-lg); }
+  .reports .stack.lg { gap: var(--space-4); }
+  .reports section.card { padding: 0; border: 0; }
+  .reports .banner { padding: var(--space-2) var(--space-3); }
+  .reports .table-wrap { overflow: visible; border: 0; }
+  .reports table.data th, .reports table.data td { position: static; padding: .2rem .35rem; font-size: .7rem; }
+  .reports table.data tr { break-inside: avoid; }
+  .rp-split { grid-template-columns: 1fr; }
+  /* status hues are tuned for screens; on paper the icon + words carry the meaning */
+  .reports .warning-text, .reports .danger-text, .reports .pill { color: var(--text); }
+}

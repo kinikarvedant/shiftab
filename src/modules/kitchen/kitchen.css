@@ -1,0 +1,32 @@
+/* KDS: sizes come from the wall root (vw-based), so 1080p and 4K show the same layout. */
+.kds { padding: var(--space-4) max(var(--space-4), 2.5vw); display: flex; flex-direction: column; gap: var(--space-4); min-height: 100%; }
+.kds-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.kds-grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); align-items: start; }
+.kds-ticket { --edge: var(--border-strong); background: var(--surface); border: 2px solid var(--edge); border-radius: var(--radius-md); overflow: hidden; display: flex; flex-direction: column; }
+.kds-ticket header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--surface-2); }
+.kds-ticket.warn { --edge: var(--warning); }
+.kds-ticket.warn header { background: var(--warning-soft); color: var(--warning); }
+.kds-ticket.late { --edge: var(--danger); border-width: 4px; }
+.kds-ticket.late header { background: var(--danger-soft); color: var(--danger); }
+.kds-where { font-size: var(--fs-2xl); font-weight: 750; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .3em; color: var(--text); }
+.kds-where svg { width: .8em; height: .8em; }
+.kds-age { display: inline-flex; align-items: center; gap: .3em; font-size: var(--fs-xl); font-weight: 650; font-variant-numeric: tabular-nums; }
+.kds-age svg { width: .9em; height: .9em; }
+.kds-ticket ul { list-style: none; margin: 0; padding: var(--space-1) 0; }
+.kds-line { width: 100%; display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: var(--space-2); padding: var(--space-2) var(--space-3);
+  background: transparent; border: 0; color: var(--text); text-align: left; cursor: pointer; font-size: var(--fs-lg); line-height: 1.25; touch-action: manipulation; }
+.kds-line:active { background: var(--state-press); }
+.kds-line.ready { color: var(--text-muted); }
+.kds-line.ready .kds-name { text-decoration: line-through; }
+.kds-line svg { color: var(--success); width: 1.1em; height: 1.1em; }
+.kds-qty { font-weight: 800; font-variant-numeric: tabular-nums; }
+.kds-name { font-weight: 600; display: flex; flex-direction: column; gap: 2px; }
+.kds-note { font-size: var(--fs-md); font-weight: 500; color: var(--warning); text-decoration: none; }
+.kds-note.allergy { align-self: flex-start; background: var(--danger-soft); color: var(--danger); padding: 0 .4em; border-radius: var(--radius-xs); font-weight: 700; }
+.kds-note.allergy::before { content: '⚠ '; }
+.kds-ticket footer { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-top: 1px solid var(--border); margin-top: auto; }
+.kds-done { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding-top: var(--space-3); border-top: 1px solid var(--border); }
+@media (prefers-reduced-motion: no-preference) {
+  .kds-ticket.late { animation: late-pulse 2s ease-in-out infinite; }
+  @keyframes late-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 35%, transparent); } }
+}

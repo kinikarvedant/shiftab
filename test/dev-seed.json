@@ -1,0 +1,8 @@
+{
+  "_note": "Throwaway accounts for local browser testing against http://localhost only. Never use in a real deployment.",
+  "venue": "Test Bistro",
+  "owner": { "name": "Olive Owner", "email": "owner@p0rtal.test", "password": "Test-owner-pass-2026", "pin": "2468" },
+  "manager": { "name": "Max Manager", "email": "manager@p0rtal.test", "password": "Test-manager-pass-2026", "pin": "1357" },
+  "staff": { "name": "Sam Server", "pin": "1111" },
+  "kitchen": { "name": "Kim Kitchen", "pin": "2222" }
+}

@@ -1,0 +1,19 @@
+.floor .chips { margin-bottom: var(--space-4); }
+.tables-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr)); }
+.table-card { --c: var(--border-strong); --bg2: var(--surface);
+  display: flex; flex-direction: column; gap: var(--space-2); min-height: 7.5rem; padding: var(--space-3) var(--space-4);
+  text-align: left; color: var(--text); background: var(--bg2); border: 1px solid var(--c); border-radius: var(--radius-md);
+  cursor: pointer; touch-action: manipulation; transition: transform var(--dur-fast) var(--ease); min-width: 0; }
+.table-card:active { transform: scale(.97); }
+.table-card .t-name { font-size: var(--fs-xl); font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.table-card .t-state { display: inline-flex; align-items: center; gap: .3em; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--c); }
+.table-card .t-state svg { width: 1.1em; height: 1.1em; }
+.table-card .t-meta { margin-top: auto; gap: var(--space-2); }
+.table-card .t-meta .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.table-card .t-meta svg { width: 1em; height: 1em; vertical-align: -0.125em; }
+.table-card .t-total { font-size: var(--fs-lg); font-weight: 700; }
+.table-card.free .t-state { color: var(--text-muted); }
+.table-card.reserved { --c: var(--info); --bg2: var(--info-soft); border-width: 2px; border-style: dashed; }
+.table-card.seated { --c: var(--accent); --bg2: var(--accent-soft); border-width: 2px; }
+.table-card.ordered { --c: var(--success); --bg2: var(--success-soft); border-width: 2px; }
+.table-card.bill { --c: var(--danger); --bg2: var(--danger-soft); border-width: 3px; }
