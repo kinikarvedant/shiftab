@@ -84,6 +84,9 @@ permissions you hold. Show those controls disabled rather than letting the serve
   Everything is rem so it scales from phones to TVs.
 - Touch targets ≥ `var(--tap)`; never colour alone (icon + text); `aria-label` on icon buttons;
   icons from `lucide-react` with `aria-hidden="true"` when decorative.
+- Motion: `var(--dur-fast|base|slow)` with `var(--ease-out)` for things arriving, `var(--ease-in)` for things leaving;
+  keep it under 300 ms and don't animate actions staff repeat all shift. Screen changes animate on their own. Put hover-only
+  effects inside `@media (hover: hover)`, and give scrolling lists `overscroll-behavior: contain`.
 - Module-specific CSS goes in a file inside the module folder, imported by the module.
 - Dialogs: `<Dialog open onClose title footer>`; prompts: `await ask({...})`, `await confirmBox({...})`.
 

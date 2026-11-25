@@ -9,7 +9,7 @@
 .tc-now { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .tc-who { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--tap); max-width: 100%; padding: var(--space-1) var(--space-4) var(--space-1) var(--space-1);
   border-radius: var(--radius-full); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; touch-action: manipulation; }
-.tc-who:hover { background: var(--state-hover); }
+@media (hover: hover) { .tc-who:hover { background: var(--state-hover); } }
 
 /* weekly grid: sticky employee column so phones can scroll the days sideways */
 .tc-grid td { vertical-align: top; padding: var(--space-2); }

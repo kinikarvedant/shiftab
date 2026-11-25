@@ -3,7 +3,8 @@
 .table-card { --c: var(--border-strong); --bg2: var(--surface);
   display: flex; flex-direction: column; gap: var(--space-2); min-height: 7.5rem; padding: var(--space-3) var(--space-4);
   text-align: left; color: var(--text); background: var(--bg2); border: 1px solid var(--c); border-radius: var(--radius-md);
-  cursor: pointer; touch-action: manipulation; transition: transform var(--dur-fast) var(--ease); min-width: 0; }
+  cursor: pointer; touch-action: manipulation; min-width: 0;
+  transition: transform var(--dur-fast) var(--ease), background-color var(--dur-slow), border-color var(--dur-slow); }
 .table-card:active { transform: scale(.97); }
 .table-card .t-name { font-size: var(--fs-xl); font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .table-card .t-state { display: inline-flex; align-items: center; gap: .3em; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--c); }

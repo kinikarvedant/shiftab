@@ -245,6 +245,29 @@ All nine fonts are OFL-1.1 and on npm as `@fontsource-variable/<id>` v5.3.x. Fea
   - A one-time banner appears when the device goes offline (Square pattern). Detect with `online`/`offline` events plus a heartbeat fetch, because `navigator.onLine` gives false positives.
 - **Reduced motion:** under `prefers-reduced-motion: reduce`, swap transforms, shakes and pulses for opacity or static color changes. The state change must stay visible.
 
+## 6b. Motion and fluidity (second pass, Nov 2026)
+
+**Measured first.** On the order screen every tap (add item, switch category, change screen) finished its script,
+style and layout work in ≤ 25 ms, so there was no input-delay (INP) problem to fix: no virtualisation, chunking or
+`useTransition` needed for speed. The gaps were in motion, touch handling and short screens.
+
+| Finding | Decision |
+|---|---|
+| Same-document View Transitions are Baseline (Chrome 111, Safari 18, Firefox 144); React 19.3 made `<ViewTransition>` stable | Screen changes are React transitions wrapped in a keyed `<ViewTransition>`: old screen fades out in 90 ms, new one rises in over 240 ms. Edits *within* a screen never animate (`default="none"`). `::view-transition { pointer-events: none }` so a fast tap is never swallowed. As a side effect the old screen stays up while a lazy module loads (no skeleton flash). |
+| Frequent actions should feel instant; UI motion < 300 ms; ease-out for arrivals, ease-in for exits (Material 3 emphasized curves; Emil Kowalski) | Tokens `--ease-out` `cubic-bezier(.05,.7,.1,1)` and `--ease-in` `cubic-bezier(.3,0,.8,.15)`. Nothing that happens hundreds of times a shift (adding an item) animates its layout. Only the count badge pops (280 ms), as confirmation that the tap registered. |
+| Bottom sheets should move from the edge they're attached to | On phones dialogs slide up from the bottom; backdrop fades in. |
+| `<dialog>` exit animations (`overlay`, `display` + `allow-discrete`) still only work reliably in Chromium | No exit animations: dialogs close instantly, which also suits frequent use. |
+| `linear()` springs and `interpolate-size` | Not used. A keyframe overshoot covers the one "pop", and `interpolate-size` isn't in Firefox. |
+| Android pull-to-refresh can reload the terminal mid-order; iOS rubber-banding feels un-app-like | `overscroll-behavior-y: none` on the page; `contain` on inner scrollers (menu grid, ticket lines, category rail, dialog bodies), so scrolling to the end of a list doesn't drag the page behind. |
+| Long-press on a tile or nav link selects text or opens the link/image menu | `-webkit-touch-callout: none; user-select: none` on buttons, nav links and avatars. |
+| Hover styles stick after a tap on touchscreens | Hover-only effects live inside `@media (hover: hover)`. |
+| Windows' classic scrollbars make the layout jump 15 px between scrolling and fixed screens | `scrollbar-gutter: stable` (not on wall displays). |
+| Phone in landscape / short windows: the order screen left 69 px of a 470 px viewport for the menu, and the PIN pad's last row was below the fold | Under 32em tall, the bars shrink (48 px top bar, 52 px bottom nav with icon and label side by side, 52 px PIN keys). The one-pane order screen becomes a scrolling page with categories and the ticket bar pinned (245 px of menu visible at 470 px). |
+| iOS still has no `navigator.vibrate` (the `<input switch>` haptic trick is undocumented) | Vibration stays a feature-detected extra; visual feedback carries the meaning. |
+| Real-time table state changes from other devices snapped | Table cards fade background/border colour over 240 ms. |
+
+Headings use `text-wrap: balance` so two-line titles don't leave a lonely word.
+
 ## 7. Accessibility essentials
 - **Focus:**
   - `:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }` (2.4.7).
@@ -315,3 +338,13 @@ All nine fonts are OFL-1.1 and on npm as `@fontsource-variable/<id>` v5.3.x. Fea
 - Plus Jakarta Sans changelog: https://github.com/tokotype/PlusJakartaSans
 - Public Sans: https://github.com/uswds/public-sans
 - Figtree: https://github.com/erikdkennedy/figtree
+- Motion and fluidity (§6b):
+  - View Transitions Baseline: https://web.dev/blog/same-document-view-transitions-are-now-baseline-newly-available
+  - React 19.3 (`<ViewTransition>` stable): https://react.dev/blog/2026/09/09/react-19-3
+  - `<ViewTransition>` reference: https://react.dev/reference/react/ViewTransition
+  - Top-layer entry/exit animations: https://developer.chrome.com/docs/modern-web-guidance/guides/ui-behaviors/animate-to-from-top-layer
+  - `linear()` easing: https://developer.chrome.com/docs/css-ui/css-linear-easing-function
+  - `interpolate-size` support: https://caniuse.com/mdn-css_properties_interpolate-size_allow-keywords
+  - Overscroll behaviour: https://developer.chrome.com/blog/overscroll-behavior
+  - Animation guidelines: https://emilkowal.ski/ui/great-animations
+  - Web haptics on iOS: https://swmansion.com/blog/haptic-feedback-on-the-web-why-the-web-deliberately-refuses-to-be-as-tactile-as-native-apps

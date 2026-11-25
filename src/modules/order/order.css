@@ -8,7 +8,7 @@
 
 .order-body { display: grid; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: 'cats' 'menu' 'bar'; }
-.cats { grid-area: cats; display: flex; gap: var(--space-2); overflow-x: auto; padding: var(--space-3) var(--space-4); scrollbar-width: none; border-bottom: 1px solid var(--border); }
+.cats { grid-area: cats; display: flex; gap: var(--space-2); overflow-x: auto; overscroll-behavior: contain; background: var(--bg); padding: var(--space-3) var(--space-4); scrollbar-width: none; border-bottom: 1px solid var(--border); }
 .cat { flex: none; min-height: var(--tap); padding: 0 var(--space-4); border-radius: var(--radius-sm); border: 1px solid var(--border);
   border-left: 5px solid var(--cat); background: var(--surface); color: var(--text); font-weight: 600; cursor: pointer; touch-action: manipulation; text-align: left; }
 .cat[aria-pressed='true'] { background: color-mix(in srgb, var(--cat) 22%, var(--surface)); border-color: var(--cat); }
@@ -19,7 +19,7 @@
 .search svg { width: 1.125rem; height: 1.125rem; color: var(--text-muted); flex: none; }
 .search input { border: 0; background: transparent; outline: none; flex: 1; min-width: 0; min-height: calc(var(--tap) - 2px); }
 .search:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
-.items { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4) var(--space-5); overflow-y: auto; align-content: start;
+.items { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4) var(--space-5); overflow-y: auto; overscroll-behavior: contain; align-content: start;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr)); }
 .item { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-2); min-height: var(--tile-h);
   padding: var(--space-3); padding-left: calc(var(--space-3) + 2px); text-align: left; color: var(--text); background: var(--surface);
@@ -30,14 +30,15 @@
 .item-price { color: var(--text-muted); font-weight: 600; font-size: var(--fs-sm); }
 .item-count { position: absolute; top: -0.5rem; right: -0.4rem; min-width: 1.75rem; height: 1.75rem; padding: 0 .4rem; display: grid; place-items: center;
   border-radius: var(--radius-full); background: var(--accent); color: var(--on-accent); font-weight: 750; font-size: var(--fs-sm); font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 3px var(--bg); }
+  box-shadow: 0 0 0 3px var(--bg); animation: pop 280ms var(--ease-out); }   /* re-keyed on each change: confirms the tap */
+@keyframes pop { 0% { transform: scale(.4); } 55% { transform: scale(1.2); } 100% { transform: none; } }
 
 .ticket-pane { display: none; grid-area: ticket; min-height: 0; border-left: 1px solid var(--border); background: var(--surface); }
 .ticket-bar { grid-area: bar; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4);
   background: var(--surface); border: 0; border-top: 1px solid var(--border); color: var(--text); font-size: var(--fs-md); cursor: pointer; }
 .ticket { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 dialog .ticket { height: auto; }
-.lines { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 4rem; }
+.lines { list-style: none; margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 4rem; }
 .line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
 .line.voided { opacity: .6; }
 .line.voided .line-name { text-decoration: line-through; }
@@ -72,4 +73,16 @@ dialog .ticket { height: auto; }
 }
 @container (min-width: 100rem) {
   .order-body { grid-template-columns: 13rem minmax(0, 1fr) minmax(26rem, 32rem); }
+}
+
+/* Short screens: tighter chrome; in the one-pane layout the page scrolls instead, with categories and the ticket bar pinned. */
+@media (max-height: 32em) {
+  .order-head, .cats, .ticket-bar { padding-block: var(--space-2); }
+  .menu-tools { padding-top: var(--space-2); }
+}
+@media (max-height: 32em) and (width < 44em) {
+  .order { height: auto; min-height: calc(100dvh - var(--topbar-h) - var(--bottombar-h)); }
+  .items { overflow: visible; }
+  .cats { position: sticky; top: var(--topbar-h); z-index: 5; }
+  .ticket-bar { position: sticky; bottom: var(--bottombar-h); z-index: 5; }
 }

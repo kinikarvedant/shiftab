@@ -1,5 +1,5 @@
 // App shell: picks the right screen (setup / lock / login / app), nav, routing, idle lock.
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, ViewTransition, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Lock as LockIcon, Loader2, MonitorSmartphone, WifiOff } from 'lucide-react';
 import { table } from './lib/db.ts';
@@ -84,7 +84,8 @@ function Shell() {
       )}
       <main className="main" id="main">
         {groups && <Suspense fallback={<div className="page"><div className="skeleton" style={{ height: '3rem', width: '40%' }} /></div>}>
-          {mod && <mod.component params={params} />}
+          {/* keyed by module: switching screens animates; edits within a screen don't (default="none") */}
+          {mod && <ViewTransition key={mod.id} enter="page" exit="page" default="none"><mod.component params={params} /></ViewTransition>}
         </Suspense>}
       </main>
     </div>

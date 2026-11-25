@@ -150,7 +150,7 @@ export default function Order({ params: [orderId] }: ModuleProps) {
                   <button key={i.id} className="item" style={{ ['--cat' as string]: catColor.get(i.categoryId) }} onClick={() => add(i)} aria-label={`${i.name}, ${fmt.money(i.price)}${n ? `, ${n} on ticket` : ''}`}>
                     <span className="item-name">{i.name}</span>
                     <span className="item-price money">{fmt.money(i.price)}</span>
-                    {n > 0 && <span className="item-count" aria-hidden="true">{n}</span>}
+                    {n > 0 && <span key={n} className="item-count" aria-hidden="true">{n}</span>}
                   </button>
                 );
               })}
