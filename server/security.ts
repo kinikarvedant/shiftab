@@ -42,7 +42,7 @@ export const safeEqual = (a: string, b: string) => {
 let fieldKey: Buffer | undefined;
 export function initSecret(appSecret: string) {
   if (appSecret.length < 32) throw new Error('APP_SECRET must be at least 32 characters');
-  fieldKey = Buffer.from(hkdfSync('sha256', appSecret, 'p0rtal', 'field-encryption-v1', 32));
+  fieldKey = Buffer.from(hkdfSync('sha256', appSecret, 'p0rtal', 'field-encryption-v1', 32)); // salt keeps the first name: changing it would make stored pay rates unreadable
 }
 
 export function seal(plain: string | Buffer): string {
@@ -67,7 +67,7 @@ export function makePin(pin: string) {
   const salt = randomBytes(16).toString('base64');
   const key = pbkdf2Sync(pin, Buffer.from(salt, 'base64'), PIN_ITERATIONS, 32, 'sha256');
   const check = createHmac('sha256', key).update(PIN_CHECK_LABEL).digest('base64');
-  return { salt, check, keyEnc: seal(key) };
+  return { salt, check, len: pin.length, keyEnc: seal(key) };
 }
 
 /** Password-derived approval key (must match src/lib/crypto.ts derivePwd). Async: 600k iterations. */

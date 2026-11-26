@@ -75,7 +75,7 @@ export function Lock({ onPassword }: { onPassword: () => void }) {
     <main className="lock">
       <header className="lock-head">
         <div>
-          <div className="brand lock-brand"><BrandMark /><span>{fmt.settings?.name ?? 'p0rtal'}</span></div>
+          <div className="brand lock-brand"><BrandMark /><span>{fmt.settings?.name ?? 'Shiftab'}</span></div>
           <div className="lock-clock" aria-label="Current time">{fmt.time(now)}</div>
           <div className="muted">{fmt.date(now)}</div>
         </div>
@@ -107,7 +107,7 @@ export function Lock({ onPassword }: { onPassword: () => void }) {
       </footer>
 
       <Dialog open={!!who} onClose={close} title={who ? <span className="row nowrap"><Avatar user={who} size="sm" /> {who.name}</span> : ''}>
-        {who && !key && <PinPad busy={busy} error={error} onSubmit={enter} />}
+        {who && !key && <PinPad busy={busy} error={error} length={who.pinLen} onSubmit={enter} />}
         {who && key && (
           <div className="stack lg">
             <p className="muted">{shift ? `On shift since ${fmt.time(shift.clockIn)} (${elapsedText(Date.now() - shift.clockIn)}).` : 'You are not clocked in.'}</p>
@@ -115,7 +115,7 @@ export function Lock({ onPassword }: { onPassword: () => void }) {
               {allowed('timeclock.self') && (shift
                 ? <button className="btn lg danger" onClick={punch}><LogOut /> Clock out</button>
                 : <button className="btn lg success" onClick={punch}><LogIn /> Clock in</button>)}
-              {WORK_PERMS.some(allowed) && <button className="btn lg primary" onClick={() => startPinSession(who, key)}>Open p0rtal <ArrowRight /></button>}
+              {WORK_PERMS.some(allowed) && <button className="btn lg primary" onClick={() => startPinSession(who, key)}>Open Shiftab <ArrowRight /></button>}
               <button className="btn lg outline" onClick={() => fileRef.current?.click()}><Camera /> {`Photo`}</button>
             </div>
             <input ref={fileRef} type="file" accept="image/*" capture="user" hidden onChange={(e) => { void setPhoto(e.target.files?.[0]); e.target.value = ''; }} />

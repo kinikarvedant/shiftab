@@ -1,4 +1,5 @@
-// Payment: split across methods, tips, cash change. Closes the order when the balance reaches zero.
+// Payment: split across methods, tips, cash change. Paying the balance closes the order, except a table whose
+// food is still being made (prepay): that stays open until staff close it once the food is served.
 import { useEffect, useState } from 'react';
 import { Banknote, CreditCard, CheckCircle2, Trash2, ArrowLeft } from 'lucide-react';
 import { write, remove } from '../../lib/sync.ts';
@@ -9,7 +10,7 @@ import { useFmt, uuid } from '../../lib/format.ts';
 import { confirmBox, Dialog, toast } from '../../ui/index.tsx';
 import { withApproval } from '../../ui/approve.tsx';
 import { minorDigits, parseMoney } from '../../../shared/money.ts';
-import { sendLines, type useOrder } from './lib.ts';
+import { closeOrder, foodStillComing, sendLines, type useOrder } from './lib.ts';
 
 type O = NonNullable<ReturnType<typeof useOrder>>;
 const isCash = (m: string) => /cash/i.test(m);
@@ -24,7 +25,7 @@ export function PayDialog({ open, onClose, o }: { open: boolean; onClose: () => 
   const [tip, setTip] = useState('');
   const [tendered, setTendered] = useState('');
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ change: number } | null>(null);
+  const [done, setDone] = useState<{ change: number; keptOpen: boolean } | null>(null);
 
   useEffect(() => { if (open) { setAmount(toText(o.balance)); setTip(''); setTendered(''); setDone(null); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -45,8 +46,10 @@ export function PayDialog({ open, onClose, o }: { open: boolean; onClose: () => 
       const me = getApp().session!.user.id;
       await write('payments', { id: uuid(), orderId: o.order.id, method, amount: amt, tip: tipC ?? 0, tendered: cash ? tend : null, takenBy: me, at: Date.now() });
       if (amt === o.balance) {
-        await write('orders', { ...o.order, status: 'paid', billRequested: false, closedAt: Date.now() });
-        setDone({ change });
+        const keptOpen = !!o.order.tableId && await foodStillComing(o.lines);
+        if (keptOpen) await write('orders', { ...o.order, billRequested: false });
+        else await closeOrder(o.order);
+        setDone({ change, keptOpen });
         if (o.order.tableId) navigator.vibrate?.(20);
       } else {
         toast(`${fmt.money(amt)} taken by ${method}. ${fmt.money(o.balance - amt)} left to pay.`, 'success');
@@ -62,13 +65,17 @@ export function PayDialog({ open, onClose, o }: { open: boolean; onClose: () => 
   }
 
   if (done) {
+    const closeNow = async () => { try { if (o.order) await closeOrder(o.order); onClose(); go('floor'); } catch (e) { toast(errorText(e), 'error'); } };
     return (
       <Dialog open={open} onClose={() => { onClose(); go('floor'); }} title="Paid">
         <div className="stack" style={{ alignItems: 'center', textAlign: 'center', padding: 'var(--space-4) 0' }}>
           <CheckCircle2 size={64} className="success-text" aria-hidden="true" />
-          <h2>Order #{o.order?.number} is closed</h2>
+          {done.keptOpen
+            ? <><h2>Paid in full</h2><p className="muted">The food is still being made, so the table stays open. Close it from the ticket once the food is served.</p></>
+            : <h2>Order #{o.order?.number} is closed</h2>}
           {done.change > 0 && <div><div className="muted">Change due</div><div className="money" style={{ fontSize: 'var(--fs-3xl)', fontWeight: 750 }}>{fmt.money(done.change)}</div></div>}
           <button className="btn primary lg" onClick={() => { onClose(); go('floor'); }}><ArrowLeft /> Back to floor</button>
+          {done.keptOpen && <button className="btn outline" onClick={() => void closeNow()}>Close the table now</button>}
         </div>
       </Dialog>
     );

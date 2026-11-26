@@ -1,4 +1,4 @@
-# p0rtal UI/UX spec: hospitality POS
+# Shiftab UI/UX spec: hospitality POS
 
 Researched 2026-11-25. Decisions come first, then the evidence. Contrast ratios are WCAG 2.x values, calculated from the hex values shown.
 
@@ -150,7 +150,7 @@ These follow M3/Android window size classes, written in `em` because media queri
   - Lightspeed: no color = no order, green = in progress, orange = ready, red = receipt printed but unpaid.
   - Square: tables turn yellow, then red, after time thresholds.
   - Toast cards: guests, open timer, spend and server initials.
-- **p0rtal table states.** Every state pairs color with an icon, text and a border style.
+- **Shiftab table states.** Every state pairs color with an icon, text and a border style.
 
 | State | Fill / border | Icon | Label | Border |
 |---|---|---|---|---|

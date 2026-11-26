@@ -8,13 +8,13 @@
 .kds-ticket.warn header { background: var(--warning-soft); color: var(--warning); }
 .kds-ticket.late { --edge: var(--danger); border-width: 4px; }
 .kds-ticket.late header { background: var(--danger-soft); color: var(--danger); }
-.kds-where { font-size: var(--fs-2xl); font-weight: 750; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .3em; color: var(--text); }
+.kds-where { font-size: var(--fs-2xl); font-weight: 750; white-space: nowrap; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .3em; color: var(--text); }
 .kds-where svg { width: .8em; height: .8em; }
 .kds-age { display: inline-flex; align-items: center; gap: .3em; font-size: var(--fs-xl); font-weight: 650; font-variant-numeric: tabular-nums; }
 .kds-age svg { width: .9em; height: .9em; }
 .kds-ticket ul { list-style: none; margin: 0; padding: var(--space-1) 0; }
 .kds-line { width: 100%; display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: var(--space-2); padding: var(--space-2) var(--space-3);
-  background: transparent; border: 0; color: var(--text); text-align: left; cursor: pointer; font-size: var(--fs-lg); line-height: 1.25; touch-action: manipulation; }
+  background: transparent; border: 0; border-left: .3rem solid var(--cat, transparent); color: var(--text); text-align: left; cursor: pointer; font-size: var(--fs-lg); line-height: 1.25; touch-action: manipulation; }
 .kds-line:active { background: var(--state-press); }
 .kds-line.ready { color: var(--text-muted); }
 .kds-line.ready .kds-name { text-decoration: line-through; }
@@ -30,3 +30,14 @@
   .kds-ticket.late { animation: late-pulse 2s ease-in-out infinite; }
   @keyframes late-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 35%, transparent); } }
 }
+
+/* course tabs: which categories this screen shows (kept per device) */
+.kds-courses { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.kds-courses .chip::before { content: ''; width: .7em; height: .7em; border-radius: 50%; background: var(--cat, var(--text-muted)); flex: none; }
+.kds-courses .chip:first-child::before { display: none; }
+.kds-count { min-width: 1.6em; padding: 0 .35em; border-radius: var(--radius-full); background: var(--surface-3); font-variant-numeric: tabular-nums; font-weight: 700; text-align: center; }
+.kds-courses .chip[aria-pressed='true'] .kds-count { background: var(--accent); color: var(--on-accent); }
+/* whole-order view for someone on a station: other stations' dishes for context, not to tap */
+.kds-line.other { opacity: .45; cursor: default; }
+.kds-line.other:active { background: transparent; }
+.kds-scope { align-self: flex-start; }

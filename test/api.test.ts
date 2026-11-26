@@ -80,6 +80,8 @@ test('owner creates staff; terminals see users without emails', async () => {
   staffKey = pinKey(sam.pinSalt, '4321');
   ownerKey = pinKey(own.pinSalt, '1234');
   assert.equal(createHmac('sha256', staffKey).update('p0rtal-pin-check').digest('base64'), sam.pinCheck);
+  assert.equal(sam.pinLen, 4, 'PIN length is recorded so the pad can submit on the last digit');
+  assert.equal(own.pinLen, 4);
 });
 
 test('PIN-signed order flow; server computes totals and ignores forged ones', async () => {
@@ -136,6 +138,19 @@ test('signatures: forged actor rejected, replay is a no-op, unsigned needs a ses
   // PIN signatures only count from an enrolled device
   r = await push({ p0_sid: owner.p0_sid }, mutation('photos', staffId, { dataUrl: 'data:image/png;base64,AAAA' }, staffId, staffKey));
   assert.equal(r.body.results[0].retry, true);
+});
+
+test('kitchen stations: a password session with staff rights, real categories and real people', async () => {
+  const mains = find('categories', (c) => c.name === 'Mains');
+  const station = { name: 'Grill', color: '#f87171', categoryIds: [mains.id], userIds: [staffId] };
+  let r = await push(deviceOnly(), mutation('stations', randomUUID(), station, ownerId, ownerKey));
+  assert.match(r.body.results[0].error, /Manage staff/, 'a PIN is not enough to assign stations');
+  r = await push(owner, mutation('stations', randomUUID(), { ...station, categoryIds: [randomUUID()] }, ownerId, null));
+  assert.match(r.body.results[0].error, /Unknown category/);
+  r = await push(owner, mutation('stations', randomUUID(), { ...station, userIds: [randomUUID()] }, ownerId, null));
+  assert.match(r.body.results[0].error, /Unknown employee/);
+  r = await push(owner, mutation('stations', randomUUID(), station, ownerId, null));
+  assert.equal(r.body.results[0].ok, true);
 });
 
 test('time clock: self punches must be at the current time', async () => {
@@ -260,4 +275,15 @@ test('login lockout after repeated failures', async () => {
     headers: { origin: 'http://localhost:80' }, payload: { email: 'owner@example.com', password } }).then((r) => r.statusCode);
   for (let i = 0; i < 5; i++) assert.equal(await login('wrong-password'), 401);
   assert.equal(await login('correct horse battery'), 429);
+});
+
+test('dish photos: only menu editors can set them, and photos must belong to a person or a dish', async () => {
+  const item = find('items', (i) => i.name === 'Calamari');
+  const photo = { dataUrl: 'data:image/jpeg;base64,AAAA' };
+  let r = await push(deviceOnly(), mutation('photos', item.id, photo, staffId, staffKey));
+  assert.equal(r.body.results[0].ok, false, 'staff cannot change a dish photo');
+  r = await push(deviceOnly(), mutation('photos', item.id, photo, ownerId, ownerKey));
+  assert.equal(r.body.results[0].ok, true, 'a menu editor can, from a terminal');
+  r = await push(deviceOnly(), mutation('photos', randomUUID(), photo, ownerId, ownerKey));
+  assert.match(r.body.results[0].error, /Unknown employee or dish/);
 });

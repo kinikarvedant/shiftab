@@ -5,15 +5,31 @@
 .settings .seg button { min-height: var(--tap-min); min-width: var(--tap); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); white-space: nowrap; }
 .settings-tabs button { min-height: var(--tap); flex: none; display: inline-flex; align-items: center; gap: var(--space-2); }
 .settings-tabs svg { width: 1.15em; height: 1.15em; flex: none; }
+/* the section list folds into an icon rail once a section is picked (Expand brings the names back) */
+.settings-body { transition: grid-template-columns var(--dur-slow) var(--ease-out); }
+.settings-tabs .fold-toggle { display: none; }
 @media (min-width: 64em) {
   .settings-body { grid-template-columns: 13rem minmax(0, 1fr); align-items: start; }
+  .settings-tabs .fold-toggle { display: inline-flex; color: var(--text-muted); }
+  .settings-body.folded { grid-template-columns: 3.75rem minmax(0, 1fr); }
+  .settings-body.folded .settings-tabs button { justify-content: center; padding-inline: 0; }
+  .settings-body.folded :is(.tab-label, .fold-label, .lock-inline) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .settings-tabs { flex-direction: column; justify-self: stretch; position: sticky; top: calc(var(--topbar-h) + var(--space-4)); }
   .settings-tabs button { justify-content: flex-start; text-align: left; width: 100%; }
 }
 
 /* list + detail (categories → items, areas → tables) */
 .set-split { display: grid; gap: var(--space-4); }
-@media (min-width: 60em) { .set-split { grid-template-columns: minmax(15rem, 1fr) minmax(0, 2fr); align-items: start; } }
+/* the list (categories / areas) folds to a narrow name list once you pick one; Expand brings back add, edit and reorder */
+.set-split { transition: grid-template-columns var(--dur-slow) var(--ease-out); }
+.set-split .fold-toggle { display: none; }
+@media (min-width: 60em) {
+  .set-split { grid-template-columns: 24rem minmax(0, 1fr); align-items: start; }
+  .set-split .fold-toggle { display: inline-flex; }
+  .set-split.folded { grid-template-columns: 13rem minmax(0, 1fr); }
+  .set-split.folded .set-side :is(.side-extra, .set-row > :not(.set-main), .set-main .muted) { display: none; }
+  .set-split.folded .set-side { padding: var(--space-3); }
+}
 .set-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .set-row { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1) 0; border-bottom: 1px solid var(--border); min-width: 0; }
 .set-row:last-child { border-bottom: 0; }
@@ -33,3 +49,12 @@
   padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-2); }
 @media (min-width: 52.5em) { .save-bar { bottom: var(--space-3); } }
 .settings .chip:disabled { opacity: .55; cursor: not-allowed; }
+
+/* sections this person can open after a password sign-in */
+.settings-tabs .locked { color: var(--text-muted); }
+.lock-inline { width: .85em; height: .85em; opacity: .8; }
+/* dish photos */
+.dish-thumb { width: 2.25rem; height: 2.25rem; border-radius: var(--radius-xs); object-fit: cover; flex: none; }
+.dish-photo { width: 6rem; height: 6rem; border-radius: var(--radius-sm); object-fit: cover; flex: none; background: var(--surface-2);
+  display: grid; place-items: center; color: var(--text-muted); border: 1px dashed var(--border-strong); }
+.dish-photo svg { width: 1.75rem; height: 1.75rem; }

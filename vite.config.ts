@@ -10,8 +10,8 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['icon.svg', 'icon-192.png'],
       manifest: {
-        name: 'p0rtal POS',
-        short_name: 'p0rtal',
+        name: 'Shiftab',
+        short_name: 'Shiftab',
         description: 'Offline-first hospitality POS with labour-cost reporting',
         theme_color: '#0E1116',
         background_color: '#0E1116',

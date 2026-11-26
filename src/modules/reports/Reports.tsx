@@ -38,7 +38,7 @@ async function fetchWeek(from: string, to: string, offline: boolean): Promise<Go
 function downloadCsv(r: Report, fmt: Fmt) {
   // BOM so Excel reads UTF-8 currency symbols
   const url = URL.createObjectURL(new Blob([String.fromCharCode(0xfeff) + reportCsv(r, fmt.money)], { type: 'text/csv;charset=utf-8' }));
-  Object.assign(document.createElement('a'), { href: url, download: `p0rtal-week-${r.from}.csv` }).click();
+  Object.assign(document.createElement('a'), { href: url, download: `shiftab-week-${r.from}.csv` }).click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 

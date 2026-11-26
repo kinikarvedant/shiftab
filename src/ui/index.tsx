@@ -1,8 +1,9 @@
 // Shared UI kit. Modules should build from these + the classes in styles.css.
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { AlertTriangle, CheckCircle2, Delete, Info, X, XCircle, CornerDownLeft } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Delete, Info, X, XCircle, CornerDownLeft, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { table } from '../lib/db.ts';
+import { askPassword, lock } from '../lib/session.ts';
 import { initials } from '../lib/format.ts';
 import { dismissToast, useToasts } from './toast.ts';
 import type { UserDoc } from '../../shared/schema.ts';
@@ -43,10 +44,38 @@ export function Avatar({ user, size = '', className = '' }: { user: Pick<UserDoc
   return <span className={cls} style={{ background: user.color }} aria-hidden="true">{initials(user.name)}</span>;
 }
 
-// ---------- Brand mark: the venue's logo, or the p0rtal mark ----------
+// ---------- Brand mark: the venue's logo, or the Shiftab mark ----------
 export function BrandMark({ className = '' }: { className?: string }) {
   const logo = useLiveQuery(async () => (await table('settings').get('business'))?.brand?.logo ?? null, []);
   return logo ? <img className={`brand-logo ${className}`} src={logo} alt="" /> : <img className={`brand-mark ${className}`} src="/icon.svg" alt="" />;
+}
+
+/** The venue's logo (or its name, until a logo is uploaded) faintly behind every screen. Decorative only. */
+export function Watermark() {
+  const s = useLiveQuery(() => table('settings').get('business'), []);
+  if (!s) return null;
+  return <div className="watermark" aria-hidden="true">{s.brand?.logo ? <img src={s.brand.logo} alt="" /> : <span>{s.name}</span>}</div>;
+}
+
+// ---------- Folding side lists ----------
+/** A side list that folds into a slim sidebar once it has been used, so the content gets the width. Remembered per device. */
+export function useFold(key: string) {
+  const k = `p0.fold.${key}`;
+  const [folded, setFolded] = useState(() => { try { return localStorage.getItem(k) === '1'; } catch { return false; } });
+  const fold = (v: boolean) => { setFolded(v); try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* storage blocked */ } };
+  return [folded, fold] as const;
+}
+
+export function FoldToggle({ folded, onToggle, what, className = 'btn ghost icon', label }: {
+  folded: boolean; onToggle: () => void; what: string; className?: string; label?: boolean;
+}) {
+  const text = folded ? `Expand ${what}` : `Collapse ${what}`;
+  return (
+    <button type="button" className={`${className} fold-toggle`} onClick={onToggle} aria-expanded={!folded} aria-label={text} title={text}>
+      {folded ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
+      {label && <span className="fold-label">{folded ? 'Expand' : 'Collapse'}</span>}
+    </button>
+  );
 }
 
 // ---------- Empty state ----------
@@ -55,8 +84,9 @@ export function Empty({ icon, title, children }: { icon?: ReactNode; title: stri
 }
 
 // ---------- PIN pad ----------
-export function PinPad({ onSubmit, busy, error, label = 'Enter your PIN' }: {
-  onSubmit: (pin: string) => Promise<boolean | void> | void; busy?: boolean; error?: string; label?: string;
+/** `length`: the person's PIN length, if known: the pad submits on the last digit. Otherwise ↵ submits. */
+export function PinPad({ onSubmit, busy, error, label = 'Enter your PIN', length }: {
+  onSubmit: (pin: string) => Promise<boolean | void> | void; busy?: boolean; error?: string; label?: string; length?: number | null;
 }) {
   const [pin, setPin] = useState('');
   const [shake, setShake] = useState(false);
@@ -65,7 +95,9 @@ export function PinPad({ onSubmit, busy, error, label = 'Enter your PIN' }: {
     const ok = await onSubmit(p);
     if (ok === false) { setShake(true); setPin(''); navigator.vibrate?.([30, 40, 30]); setTimeout(() => setShake(false), 400); }
   };
-  const press = (d: string) => { if (!busy) setPin((p) => (p.length < 8 ? p + d : p)); navigator.vibrate?.(8); };
+  // functional update: taps/keys that land before the next render must not read a stale PIN
+  const press = (d: string) => { if (!busy) setPin((p) => (p.length < (length ?? 8) ? p + d : p)); navigator.vibrate?.(8); };
+  useEffect(() => { if (length && pin.length === length) void submit(pin); }, [pin]);
   const back = () => setPin((p) => p.slice(0, -1));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -83,7 +115,7 @@ export function PinPad({ onSubmit, busy, error, label = 'Enter your PIN' }: {
     <div className="stack" style={{ alignItems: 'center', gap: 'var(--space-4)' }}>
       <div className="muted" id="pin-label">{label}</div>
       <div className={`pin-dots${shake ? ' shake' : ''}`} role="status" aria-live="polite" aria-label={`${pin.length} digits entered`}>
-        {Array.from({ length: Math.max(4, pin.length) }, (_, i) => <i key={i} className={i < pin.length ? 'on' : ''} />)}
+        {Array.from({ length: Math.max(length ?? 4, pin.length) }, (_, i) => <i key={i} className={i < pin.length ? 'on' : ''} />)}
       </div>
       {error && <div role="alert" className="danger-text small">{error}</div>}
       <div className="pinpad" role="group" aria-labelledby="pin-label">
@@ -129,6 +161,19 @@ export function ask(o: AskOpts): Promise<string | null> {
   return new Promise((resolve) => { pending = { input: true, ...o, resolve }; emitAsk(); });
 }
 export const confirmBox = async (o: Omit<AskOpts, 'input'>) => (await ask({ ...o, input: false })) !== null;
+
+/** From a PIN session: confirm, then swap to the email + password sign-in and land on `route` afterwards. */
+export async function openWithPassword(label: string, route: string) {
+  const ok = await confirmBox({
+    title: `${label} needs your password`,
+    message: `${label} only opens after signing in with your email and password, never with a PIN. This ends your PIN session.`,
+    confirm: 'Sign in with password',
+  });
+  if (!ok) return;
+  history.replaceState(null, '', `#/${route}`); // no hashchange, so the shell doesn't redirect before the sign-in
+  await lock();
+  askPassword(true);
+}
 
 export function AskHost() {
   const p = useSyncExternalStore((f) => { askSubs.add(f); return () => askSubs.delete(f); }, () => pending);

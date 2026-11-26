@@ -99,7 +99,7 @@ export function ApproveHost() {
       ) : (
         <div className="stack" style={{ alignItems: 'center' }}>
           <div className="row"><Avatar user={who} /> <strong>{who.name}</strong> <button className="btn ghost sm" onClick={() => setWho(null)}>Change</button></div>
-          <PinPad busy={busy} error={error} label={`${who.name}, enter your PIN to approve`} onSubmit={async (pin) => {
+          <PinPad busy={busy} error={error} length={who.pinLen} label={`${who.name}, enter your PIN to approve`} onSubmit={async (pin) => {
             setBusy(true);
             try {
               const key = await checkPin(who, pin);

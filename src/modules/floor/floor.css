@@ -18,3 +18,4 @@
 .table-card.seated { --c: var(--accent); --bg2: var(--accent-soft); border-width: 2px; }
 .table-card.ordered { --c: var(--success); --bg2: var(--success-soft); border-width: 2px; }
 .table-card.bill { --c: var(--danger); --bg2: var(--danger-soft); border-width: 3px; }
+.table-card.paid { --c: var(--success); border-width: 2px; border-style: dashed; }   /* paid, food still to be served */

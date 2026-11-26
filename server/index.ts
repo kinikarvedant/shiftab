@@ -1,4 +1,4 @@
-// p0rtal server: API + static PWA. Run: node server/index.ts (Node >= 22.18).
+// Shiftab server: API + static PWA. Run: node server/index.ts (Node >= 22.18).
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -32,7 +32,7 @@ export function buildApp(opts: { dataDir: string; production: boolean; setupCode
   }
   initSecret(secret);
 
-  const db = openDb(join(opts.dataDir, 'p0rtal.db'));
+  const db = openDb(join(opts.dataDir, 'p0rtal.db')); // file keeps the first project name so existing installs open as-is
   const setupCode = (opts.setupCode ?? process.env.SETUP_CODE ?? randomBytes(5).toString('hex')).toUpperCase();
   const config: Config = { production: opts.production, dataDir: opts.dataDir, setupCode };
   const ctx: Ctx = { db, config, broadcast: () => {} };

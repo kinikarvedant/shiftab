@@ -1,15 +1,15 @@
 // App shell: picks the right screen (setup / lock / login / app), nav, routing, idle lock.
-import { Suspense, ViewTransition, useEffect, useRef, useState } from 'react';
+import { Suspense, ViewTransition, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Lock as LockIcon, Loader2, MonitorSmartphone, WifiOff } from 'lucide-react';
 import { table } from './lib/db.ts';
 import { api, errorText } from './lib/api.ts';
-import { canSession, lock, refreshState, setGroupCache, updateSessionUser, useApp } from './lib/session.ts';
+import { askPassword, canSession, lock, refreshState, setGroupCache, updateSessionUser, useApp, useNeedsPassword } from './lib/session.ts';
 import type { Permission } from '../shared/permissions.ts';
 import { go, useRoute } from './lib/router.ts';
 import { useSettings } from './lib/format.ts';
 import { MODULES } from './modules/index.ts';
-import { AskHost, Avatar, BrandMark, Toasts, ask, toast } from './ui/index.tsx';
+import { AskHost, Avatar, BrandMark, FoldToggle, Toasts, Watermark, ask, openWithPassword, toast, useFold } from './ui/index.tsx';
 import { setBrand } from './lib/display.ts';
 import { ApproveHost } from './ui/approve.tsx';
 import { SyncPill } from './ui/sync-pill.tsx';
@@ -19,15 +19,14 @@ import { Login } from './screens/Login.tsx';
 
 export function App() {
   const app = useApp();
-  const [password, setPassword] = useState(false);
   const brand = useLiveQuery(async () => (await table('settings').get('business'))?.brand ?? null, []);
   useEffect(() => { if (brand !== undefined) setBrand(brand); }, [brand]);
-  useEffect(() => { if (app.session) setPassword(false); }, [app.session]);
+  useEffect(() => { if (app.session) askPassword(false); }, [app.session]);
 
   let screen;
   if (!app.ready) screen = <main className="center-page"><Loader2 className="spin" size={40} aria-label="Loading" /></main>;
   else if (app.needsSetup) screen = <Setup />;
-  else if (!app.session) screen = app.device && !password ? <Lock onPassword={() => setPassword(true)} /> : <Login onBack={app.device ? () => setPassword(false) : undefined} />;
+  else if (!app.session) screen = app.device && !app.passwordPrompt ? <Lock onPassword={() => askPassword(true)} /> : <Login onBack={app.device ? () => askPassword(false) : undefined} />;
   else screen = <Shell />;
 
   return <>{screen}<Toasts /><AskHost /><ApproveHost /></>;
@@ -47,10 +46,14 @@ function Shell() {
   const nav = visible.filter((m) => m.nav !== false);
   const mod = visible.find((m) => m.id === id);
   const fallback = nav.find((m) => m.anyOf.length > 0) ?? nav[0];
+  // Owners/managers on a PIN see their password-only sections too, marked locked, instead of them silently missing.
+  const needsPassword = useNeedsPassword();
+  const [navFolded, foldNav] = useFold('nav'); // wide screens: the sidebar folds to a slim rail once you've used it
+  const locked = MODULES.filter((m) => m.nav !== false && !visible.includes(m) && m.anyOf.some(needsPassword));
   useEffect(() => { if (groups && !mod && fallback) go(fallback.id); }, [groups, mod, fallback]);
   const groupName = groups?.find((g) => g.id === session!.user.groupId)?.name;
 
-  // wall surface (kitchen display / TV): vw-based root size, no sidebar
+  // wall surface (kitchen display / TV): vw-based root size, nav shrinks to a slim rail
   const wall = !!mod?.wall;
   useEffect(() => {
     if (wall) document.documentElement.dataset.surface = 'wall'; else delete document.documentElement.dataset.surface;
@@ -60,9 +63,10 @@ function Shell() {
 
   const level = session!.level;
   return (
-    <div className="app" style={wall ? { gridTemplateColumns: 'minmax(0, 1fr)', gridTemplateRows: 'var(--topbar-h) minmax(0, 1fr)', gridTemplateAreas: "'top' 'main'" } : undefined}>
+    <div className={`app${wall ? ' wall' : ''}${navFolded ? ' nav-folded' : ''}`}>
+      <Watermark />
       <header className="topbar">
-        <div className="brand"><BrandMark /><span className="ellipsis">{settings?.name ?? 'p0rtal'}</span></div>
+        <div className="brand"><BrandMark /><span className="ellipsis">{settings?.name ?? 'Shiftab'}</span></div>
         <div className="spacer" />
         <SyncPill />
         {!device && level === 'password' && can('devices.manage') && <EnrolButton />}
@@ -73,15 +77,19 @@ function Shell() {
         </span>
         <button className="btn outline sm" onClick={() => void lock()} aria-label="Lock and sign out"><LockIcon /><span className="lock-label">Lock</span></button>
       </header>
-      {!wall && (
-        <nav className="nav" aria-label="Main">
+      <nav className="nav" aria-label="Main">
           {nav.map((m) => (
-            <a key={m.id} href={`#/${m.id}`} aria-current={m.id === id || (id === 'order' && m.id === 'floor') ? 'page' : undefined}>
+            <a key={m.id} href={`#/${m.id}`} onClick={() => foldNav(true)} aria-current={m.id === id || (id === 'order' && m.id === 'floor') ? 'page' : undefined}>
               <m.icon aria-hidden="true" /><span>{m.label}</span>
             </a>
           ))}
-        </nav>
-      )}
+          {locked.map((m) => (
+            <button key={m.id} type="button" className="locked" onClick={() => void openWithPassword(m.label, m.id)} aria-label={`${m.label}, needs your password`}>
+              <m.icon aria-hidden="true" /><span>{m.label}</span><LockIcon className="lock-badge" aria-hidden="true" />
+            </button>
+          ))}
+          <FoldToggle folded={navFolded} onToggle={() => foldNav(!navFolded)} what="menu" className="nav-fold" label />
+      </nav>
       <main className="main" id="main">
         {groups && <Suspense fallback={<div className="page"><div className="skeleton" style={{ height: '3rem', width: '40%' }} /></div>}>
           {/* keyed by module: switching screens animates; edits within a screen don't (default="none") */}

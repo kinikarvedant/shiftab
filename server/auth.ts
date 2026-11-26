@@ -185,7 +185,7 @@ export function authRoutes(app: FastifyInstance, ctx: Ctx) {
       }
       db.put('users', ownerId, {
         name: body.owner.name, groupId: ownerGroup, active: true, color: '#a78bfa',
-        email: body.owner.email, pinSalt: pin.salt, pinCheck: pin.check, pwdSalt: null, pwdCheck: null, hasPassword: true, hasTotp: false,
+        email: body.owner.email, pinSalt: pin.salt, pinCheck: pin.check, pinLen: pin.len, pwdSalt: null, pwdCheck: null, hasPassword: true, hasTotp: false,
       }, ownerId);
       db.raw.prepare('INSERT INTO credentials (user_id, email, password_hash, pin_key_enc) VALUES (?, ?, ?, ?)')
         .run(ownerId, body.owner.email, hash, pin.keyEnc);
@@ -276,8 +276,8 @@ export function authRoutes(app: FastifyInstance, ctx: Ctx) {
     if (cred.totp_enc) fail(409, 'Two-factor is already on. Turn it off first (that needs a current code).');
     const secret = newTotpSecret();
     db.raw.prepare('UPDATE credentials SET totp_pending_enc = ? WHERE user_id = ?').run(seal(secret), me.user.id);
-    const label = encodeURIComponent(`p0rtal:${me.user.email ?? me.user.name}`);
-    return { secret, uri: `otpauth://totp/${label}?secret=${secret}&issuer=p0rtal&digits=6&period=30` };
+    const label = encodeURIComponent(`Shiftab:${me.user.email ?? me.user.name}`);
+    return { secret, uri: `otpauth://totp/${label}?secret=${secret}&issuer=Shiftab&digits=6&period=30` };
   });
 
   const setTotpFlag = (userId: string, on: boolean, actor: string) => {

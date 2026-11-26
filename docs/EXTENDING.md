@@ -1,6 +1,6 @@
-# Extending p0rtal
+# Extending Shiftab
 
-p0rtal is a template: a new feature is a module folder plus (optionally) a new synced
+Shiftab is a template: a new feature is a module folder plus (optionally) a new synced
 collection. Sync, offline storage, real-time updates, permissions and audit come for free.
 
 ## Map of the code

@@ -1,4 +1,4 @@
-# p0rtal — Build Plan
+# Shiftab — Build Plan
 
 How Shiftab is put together. Decisions are final unless a later section
 says otherwise; trade-offs are listed at the end.
@@ -256,6 +256,6 @@ Driven by `docs/research/ui-ux.md`:
   inherently low-entropy: someone with a copy of a terminal's data could guess a *staff* PIN
   offline and act as that staff member for everyday actions (orders, their punches). Overrides and
   back-office access are out of reach. Encourage 6-digit PINs.
-- **No card processing.** p0rtal records tenders; integrating a card terminal is a module.
+- **No card processing.** Shiftab records tenders; integrating a card terminal is a module.
 - **Offline password unlock is read-only** (cached reports); writes from it wait for a real
   session.

@@ -1,7 +1,7 @@
 // Floor: every table's live state and running total, open tickets, quick takeaway.
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { CalendarClock, Plus, Receipt, ShoppingBag, Users, Utensils, Armchair } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Plus, Receipt, ShoppingBag, Users, Utensils, Armchair } from 'lucide-react';
 import { table } from '../../lib/db.ts';
 import { write } from '../../lib/sync.ts';
 import { go } from '../../lib/router.ts';
@@ -13,13 +13,14 @@ import type { ModuleProps } from '../index.ts';
 import type { OrderDoc, ReservationDoc, TableDoc } from '../../../shared/schema.ts';
 import './floor.css';
 
-type State = 'free' | 'reserved' | 'seated' | 'ordered' | 'bill';
+type State = 'free' | 'reserved' | 'seated' | 'ordered' | 'bill' | 'paid';
 const STATE: Record<State, { label: string; icon: typeof Users }> = {
   free: { label: 'Free', icon: Armchair },
   reserved: { label: 'Reserved', icon: CalendarClock },
   seated: { label: 'Seated', icon: Users },
   ordered: { label: 'Ordered', icon: Utensils },
   bill: { label: 'Bill', icon: Receipt },
+  paid: { label: 'Paid', icon: CheckCircle2 }, // prepaid, waiting for food; staff close it once served
 };
 
 export default function Floor(_: ModuleProps) {
@@ -56,7 +57,8 @@ export default function Floor(_: ModuleProps) {
       const sums = orders.map(sum);
       const total = sums.reduce((a, s) => a + s.totals.total, 0);
       const sent = orders.some((o) => data.lines.some((l) => l.orderId === o.id && l.status !== 'new' && !l.voided));
-      const state: State = orders.some((o) => o.billRequested) ? 'bill' : orders.length ? (sent ? 'ordered' : 'seated') : res ? 'reserved' : 'free';
+      const paidUp = sums.length > 0 && sums.every((s) => s.count > 0 && s.paid > 0 && s.balance === 0);
+      const state: State = paidUp ? 'paid' : orders.some((o) => o.billRequested) ? 'bill' : orders.length ? (sent ? 'ordered' : 'seated') : res ? 'reserved' : 'free';
       return { t, orders, res, total, state, guests: orders.reduce((a, o) => a + o.guests, 0), since: orders[0]?.openedAt };
     });
     const takeaways = data.orders.filter((o) => !o.tableId).sort((a, b) => a.openedAt - b.openedAt).map((o) => ({ o, s: sum(o) }));
@@ -76,7 +78,7 @@ export default function Floor(_: ModuleProps) {
       <div className="page-head">
         <div>
           <h1>Floor</h1>
-          <p className="small">{counts.free ?? 0} free · {(counts.seated ?? 0) + (counts.ordered ?? 0) + (counts.bill ?? 0)} occupied · {counts.reserved ?? 0} reserved</p>
+          <p className="small">{counts.free ?? 0} free · {(counts.seated ?? 0) + (counts.ordered ?? 0) + (counts.bill ?? 0) + (counts.paid ?? 0)} occupied · {counts.reserved ?? 0} reserved</p>
         </div>
         <button className="btn primary lg" onClick={takeaway}><ShoppingBag /> New takeaway</button>
       </div>

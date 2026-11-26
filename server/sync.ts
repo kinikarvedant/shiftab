@@ -46,10 +46,18 @@ const RULES: Record<CollectionName, Rule> = {
   groups: () => 'Groups are changed from the Staff screen (needs a connection).',
   users: () => 'Staff are changed from the Staff screen (needs a connection).',
   photos: (x) => {
-    if (!x.db.live('users', x.m.id)) return 'Unknown employee.';
+    if (x.db.live('items', x.m.id)) return need('menu.manage')(x); // a dish photo
+    if (!x.db.live('users', x.m.id)) return 'Unknown employee or dish.';
     return x.m.id === x.actor.id || x.actor.can('staff.manage') ? null : 'You can only change your own photo.';
   },
   categories: need('menu.manage'),
+  stations: (x) => {
+    const r = need('staff.manage')(x);
+    if (r || !x.next) return r;
+    for (const id of x.next.categoryIds) { const bad = refExists(x.db, 'categories', id, 'category'); if (bad) return bad; }
+    for (const id of x.next.userIds) { const bad = refExists(x.db, 'users', id, 'employee'); if (bad) return bad; }
+    return null;
+  },
   items: (x) => {
     const r = need('menu.manage')(x) ?? (x.next && refExists(x.db, 'categories', x.next.categoryId, 'category'));
     if (!r && x.prev && x.next && x.prev.price !== x.next.price) x.audit('menu.price', { name: x.next.name, from: x.prev.price, to: x.next.price });

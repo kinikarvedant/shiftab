@@ -11,7 +11,7 @@ export const b64 = (buf: ArrayBuffer | Uint8Array) => {
 export const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 export function assertSecureContext() {
-  if (!globalThis.crypto?.subtle) throw new Error('p0rtal must be opened over HTTPS (or localhost) for sign-in and encryption to work.');
+  if (!globalThis.crypto?.subtle) throw new Error('Shiftab must be opened over HTTPS (or localhost) for sign-in and encryption to work.');
 }
 
 export async function sha256hex(s: string) {

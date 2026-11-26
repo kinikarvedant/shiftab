@@ -42,7 +42,7 @@ export function staffRoutes(app: FastifyInstance, ctx: Ctx) {
     db.tx(() => {
       db.put('users', userId, {
         name: body.name, groupId: body.groupId, active: true, color: body.color,
-        email: null, pinSalt: pin?.salt ?? null, pinCheck: pin?.check ?? null, pwdSalt: null, pwdCheck: null, hasPassword: false, hasTotp: false,
+        email: null, pinSalt: pin?.salt ?? null, pinCheck: pin?.check ?? null, pinLen: pin?.len ?? null, pwdSalt: null, pwdCheck: null, hasPassword: false, hasTotp: false,
       }, me.user.id);
       db.raw.prepare('INSERT INTO credentials (user_id, pin_key_enc, pin_changed_at) VALUES (?, ?, ?)').run(userId, pin?.keyEnc ?? null, Date.now());
       db.audit(me.user.id, me.device?.id ?? null, 'staff.created', userId, { name: body.name, groupId: body.groupId });
@@ -85,7 +85,7 @@ export function staffRoutes(app: FastifyInstance, ctx: Ctx) {
       // A reset by a manager (e.g. the PIN leaked) revokes the old one immediately.
       db.raw.prepare(`UPDATE credentials SET pin_prev_enc = ${t.self ? 'pin_key_enc' : 'NULL'}, pin_key_enc = ?, pin_changed_at = ? WHERE user_id = ?`)
         .run(p.keyEnc, Date.now(), userId);
-      db.put('users', userId, stripMeta({ ...t.user, pinSalt: p.salt, pinCheck: p.check }), me.user.id);
+      db.put('users', userId, stripMeta({ ...t.user, pinSalt: p.salt, pinCheck: p.check, pinLen: p.len }), me.user.id);
       db.audit(me.user.id, me.device?.id ?? null, 'staff.pin_set', userId);
     });
     ctx.broadcast();

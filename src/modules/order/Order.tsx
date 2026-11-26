@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowLeft, Ban, ChefHat, Minus, MoreHorizontal, NotebookPen, Percent, Plus, Receipt, Search, Send, ShoppingBag,
-  Tag, Trash2, Users, ArrowRightLeft, CircleDollarSign, RotateCcw, Check,
+  Tag, Trash2, Users, ArrowRightLeft, CircleDollarSign, RotateCcw, Check, CheckCircle2,
 } from 'lucide-react';
 import { table } from '../../lib/db.ts';
 import { remove, write, type Signer } from '../../lib/sync.ts';
@@ -16,7 +16,7 @@ import { withApproval } from '../../ui/approve.tsx';
 import { formatBp, minorDigits, parseMoney } from '../../../shared/money.ts';
 import type { ItemDoc, OrderDoc, OrderItemDoc } from '../../../shared/schema.ts';
 import type { ModuleProps } from '../index.ts';
-import { sendLines, useOrder } from './lib.ts';
+import { closeOrder, sendLines, useOrder } from './lib.ts';
 import { PayDialog } from './Pay.tsx';
 import './order.css';
 
@@ -33,7 +33,8 @@ export default function Order({ params: [orderId] }: ModuleProps) {
   const o = useOrder(orderId ?? '');
   const menu = useLiveQuery(async () => {
     const [cats, items] = await Promise.all([table('categories').toArray(), table('items').filter((i) => i.active).toArray()]);
-    return { cats: cats.sort((a, b) => a.sort - b.sort), items: items.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name)) };
+    const photos = new Map((await table('photos').bulkGet(items.map((i) => i.id))).flatMap((p) => (p ? [[p.id, p.dataUrl] as const] : [])));
+    return { cats: cats.sort((a, b) => a.sort - b.sort), items: items.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name)), photos };
   }, []);
   const tables = useLiveQuery(() => table('tables').toArray(), [], []);
   const [cat, setCat] = useState('');
@@ -108,7 +109,8 @@ export default function Order({ params: [orderId] }: ModuleProps) {
 
   const ticket = (
     <Ticket order={order} o={o} now={now} onEdit={setEdit} onInc={(l) => bump(l.id, 1)} onDec={(l) => bump(l.id, -1)}
-      onSend={() => void send()} onPay={() => { setTicketOpen(false); setPayOpen(true); }} />
+      onSend={() => void send()} onPay={() => { setTicketOpen(false); setPayOpen(true); }}
+      onClose={() => void closeOrder(order).then(() => { toast(`${order.tableId ? 'Table' : 'Order'} closed`, 'success'); go('floor'); }, (e) => toast(errorText(e), 'error'))} />
   );
 
   return (
@@ -148,6 +150,7 @@ export default function Order({ params: [orderId] }: ModuleProps) {
                 const n = qtyOf(i.id);
                 return (
                   <button key={i.id} className="item" style={{ ['--cat' as string]: catColor.get(i.categoryId) }} onClick={() => add(i)} aria-label={`${i.name}, ${fmt.money(i.price)}${n ? `, ${n} on ticket` : ''}`}>
+                    {menu?.photos.has(i.id) && <img className="item-photo" src={menu.photos.get(i.id)} alt="" decoding="async" />}
                     <span className="item-name">{i.name}</span>
                     <span className="item-price money">{fmt.money(i.price)}</span>
                     {n > 0 && <span key={n} className="item-count" aria-hidden="true">{n}</span>}
@@ -180,11 +183,12 @@ export default function Order({ params: [orderId] }: ModuleProps) {
 
 type O = NonNullable<ReturnType<typeof useOrder>>;
 
-function Ticket({ order, o, now, onEdit, onInc, onDec, onSend, onPay }: {
-  order: OrderDoc; o: O; now: number; onEdit: (l: OrderItemDoc) => void; onInc: (l: OrderItemDoc) => void; onDec: (l: OrderItemDoc) => void; onSend: () => void; onPay: () => void;
+function Ticket({ order, o, now, onEdit, onInc, onDec, onSend, onPay, onClose }: {
+  order: OrderDoc; o: O; now: number; onEdit: (l: OrderItemDoc) => void; onInc: (l: OrderItemDoc) => void; onDec: (l: OrderItemDoc) => void; onSend: () => void; onPay: () => void; onClose: () => void;
 }) {
   const fmt = useFmt();
   const t = o.totals;
+  const paidUp = o.count > 0 && o.paid > 0 && o.balance === 0; // prepaid table waiting for its food
   return (
     <div className="ticket">
       <ul className="lines" aria-label="Items on this ticket">
@@ -219,9 +223,12 @@ function Ticket({ order, o, now, onEdit, onInc, onDec, onSend, onPay }: {
           {o.paid > 0 && <div><dt>Paid</dt><dd className="money">−{fmt.money(o.paid)}</dd></div>}
           <div className="grand"><dt>{o.paid > 0 ? 'Balance' : 'Total'}</dt><dd className="money">{fmt.money(o.paid > 0 ? o.balance : t.total)}</dd></div>
         </dl>
+        {paidUp && <p className="banner small" role="status"><CheckCircle2 aria-hidden="true" /> Paid in full. Close the table once the food is served.</p>}
         <div className="ticket-actions">
           <button className="btn lg outline" onClick={onSend} disabled={o.unsent.length === 0}><Send /> Send{o.unsent.length ? ` (${o.unsent.length})` : ''}</button>
-          <button className="btn lg primary" onClick={onPay} disabled={o.count === 0}><CircleDollarSign /> Pay {fmt.money(o.balance)}</button>
+          {paidUp
+            ? <button className="btn lg success" onClick={onClose}><CheckCircle2 /> Close {order.tableId ? 'table' : 'order'}</button>
+            : <button className="btn lg primary" onClick={onPay} disabled={o.count === 0}><CircleDollarSign /> Pay {fmt.money(o.balance)}</button>}
         </div>
       </div>
     </div>

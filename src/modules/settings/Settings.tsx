@@ -2,14 +2,14 @@
 // Every section is gated by its permission; the tab is in the route (#/settings/menu).
 import { useMemo, useReducer, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Armchair, MonitorCog, MonitorSmartphone, Palette, Plus, ShieldCheck, Store, UtensilsCrossed, X } from 'lucide-react';
+import { Armchair, Lock, MonitorCog, MonitorSmartphone, Palette, Plus, ShieldCheck, Store, UtensilsCrossed, X } from 'lucide-react';
 import { table } from '../../lib/db.ts';
-import { useCan } from '../../lib/session.ts';
+import { useCan, useNeedsPassword } from '../../lib/session.ts';
 import { go } from '../../lib/router.ts';
 import { write } from '../../lib/sync.ts';
 import { useFmt } from '../../lib/format.ts';
 import { prefs, SCALES, setPref, WALL_SCALES, type Theme } from '../../lib/display.ts';
-import { toast } from '../../ui/index.tsx';
+import { FoldToggle, openWithPassword, toast, useFold } from '../../ui/index.tsx';
 import { DEFAULT_SETTINGS, Settings as SettingsSchema, type DataOf } from '../../../shared/schema.ts';
 import type { Permission } from '../../../shared/permissions.ts';
 import type { ModuleProps } from '../index.ts';
@@ -31,15 +31,26 @@ const TABS: { id: string; label: string; hint: string; icon: typeof Store; perm?
 
 export default function Settings({ params: [tab] }: ModuleProps) {
   const can = useCan();
+  const needsPassword = useNeedsPassword();
   const tabs = TABS.filter((t) => !t.perm || can(t.perm));
+  const locked = TABS.filter((t) => t.perm && !can(t.perm) && needsPassword(t.perm)); // e.g. Appearance for an owner on a PIN
   const cur = tabs.find((t) => t.id === tab) ?? tabs[0]!;
+  const [folded, fold] = useFold('settings');
   return (
     <div className="page settings">
       <div className="page-head"><div><h1>Settings</h1><p>{cur.hint}</p></div></div>
-      <div className="settings-body">
+      <div className={`settings-body${folded ? ' folded' : ''}`}>
         <nav className="seg settings-tabs" aria-label="Settings sections">
+          <FoldToggle folded={folded} onToggle={() => fold(!folded)} what="sections" className="" label />
           {tabs.map((t) => (
-            <button key={t.id} type="button" aria-pressed={t === cur} onClick={() => go(`settings/${t.id}`)}><t.icon aria-hidden="true" /> {t.label}</button>
+            <button key={t.id} type="button" aria-pressed={t === cur} title={t.label} onClick={() => { go(`settings/${t.id}`); fold(true); }}>
+              <t.icon aria-hidden="true" /> <span className="tab-label">{t.label}</span>
+            </button>
+          ))}
+          {locked.map((t) => (
+            <button key={t.id} type="button" className="locked" title={`${t.label} (needs your password)`} onClick={() => void openWithPassword(t.label, `settings/${t.id}`)} aria-label={`${t.label}, needs your password`}>
+              <t.icon aria-hidden="true" /> <span className="tab-label">{t.label}</span> <Lock className="lock-inline" aria-hidden="true" />
+            </button>
           ))}
         </nav>
         <div className="settings-pane"><cur.C /></div>

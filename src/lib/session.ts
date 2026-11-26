@@ -19,13 +19,15 @@ export interface AppState {
   serverUserId: string | null; // valid password session on the server
   totp: boolean;
   session: Session | null;
+  passwordPrompt: boolean;     // show the email + password sign-in instead of the PIN tiles
 }
 
-let app: AppState = { ready: false, needsSetup: false, device: null, serverUserId: null, totp: false, session: null };
+let app: AppState = { ready: false, needsSetup: false, device: null, serverUserId: null, totp: false, session: null, passwordPrompt: false };
 const subs = new Set<() => void>();
 const set = (p: Partial<AppState>) => { app = { ...app, ...p }; subs.forEach((f) => f()); };
 export const useApp = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, () => app);
 export const getApp = () => app;
+export const askPassword = (v: boolean) => set({ passwordPrompt: v });
 
 setSignerSource((): Signer | null => app.session ? { userId: app.session.user.id, level: app.session.level, key: app.session.pinKey } : null);
 
@@ -138,7 +140,12 @@ export async function lock() {
   const s = app.session;
   set({ session: null });
   if (s?.level === 'password' || app.serverUserId) await logoutServer();
+  pendingUpdate?.();
 }
+
+// A new app version installs only when nobody is signed in, so a terminal never reloads mid-order.
+let pendingUpdate: (() => void) | null = null;
+export function updateWhenIdle(apply: () => void) { pendingUpdate = apply; if (!app.session) apply(); }
 
 // Logging out must reach the server even if this device is offline right now: remember and retry.
 const PENDING_LOGOUT = 'p0.pendingLogout';
@@ -181,6 +188,14 @@ export function canSession(s: Session | null, perm: Permission, groups: GroupDoc
   if (!s) return false;
   const g = groups.find((x) => x.id === s.user.groupId);
   return can(s.user, g, perm, s.level === 'pin' ? 'pin' : 'password');
+}
+
+/** Permissions this person holds but can only use after an email + password sign-in (they're on a PIN). */
+export function useNeedsPassword() {
+  const { session } = useApp();
+  const groups = useLiveQuery(() => table('groups').toArray(), [], groupCache);
+  return useCallback((perm: Permission) => !!session && session.level === 'pin'
+    && can(session.user, groups.find((g) => g.id === session.user.groupId), perm, 'password'), [session, groups]);
 }
 
 /** Reactive permission check for components. */

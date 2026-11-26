@@ -6,12 +6,12 @@ import { write, type Signer } from '../../lib/sync.ts';
 import { uuid } from '../../lib/format.ts';
 import { orderTotals, paidSum } from '../../../shared/money.ts';
 import { businessDay } from '../../../shared/time.ts';
-import type { OrderDoc, OrderItemDoc, PaymentDoc, SettingsDoc } from '../../../shared/schema.ts';
+import { DEFAULT_SETTINGS, type OrderDoc, type OrderItemDoc, type PaymentDoc, type SettingsDoc } from '../../../shared/schema.ts';
 
 /** Short ticket number: device code + daily counter, e.g. "A-014". Unique per device per day. */
 async function nextNumber() {
   const s = await table('settings').get('business');
-  const day = businessDay(Date.now(), s?.timezone ?? 'UTC', s?.dayStartHour ?? 4);
+  const day = businessDay(Date.now(), s?.timezone ?? DEFAULT_SETTINGS.timezone!, s?.dayStartHour ?? 4);
   const key = `ordno:${day}`;
   const n = ((await getMeta<number>(key)) ?? 0) + 1;
   await setMeta(key, n);
@@ -50,6 +50,15 @@ export function useOrder(orderId: string) {
     return { order, lines, payments, settings, ...summarise(order, lines, payments, settings) };
   }, [orderId]);
 }
+
+/** Kitchen food on this order that hasn't come off the pass yet (the same lines the kitchen display shows as to-do). */
+export async function foodStillComing(lines: OrderItemDoc[]) {
+  const items = new Map((await table('items').toArray()).map((i) => [i.id, i]));
+  return lines.some((l) => !l.voided && l.status !== 'ready' && !(l.itemId && items.get(l.itemId)?.sendToKitchen === false));
+}
+
+/** Close a fully paid order. The server re-checks that it's paid in full. */
+export const closeOrder = (order: OrderDoc) => write('orders', { ...order, status: 'paid', billRequested: false, closedAt: Date.now() });
 
 /** Send every unsent line to the kitchen. */
 export async function sendLines(lines: OrderItemDoc[], signer?: Signer) {

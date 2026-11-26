@@ -134,7 +134,7 @@ export function financeRoutes(app: FastifyInstance, ctx: Ctx) {
     stream.on('close', () => rmSync(file, { force: true }));
     return reply
       .header('Content-Type', 'application/octet-stream')
-      .header('Content-Disposition', `attachment; filename="p0rtal-backup-${new Date().toISOString().slice(0, 10)}.db"`)
+      .header('Content-Disposition', `attachment; filename="shiftab-backup-${new Date().toISOString().slice(0, 10)}.db"`)
       .send(stream);
   });
 }

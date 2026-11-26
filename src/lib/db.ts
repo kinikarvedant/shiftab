@@ -11,7 +11,7 @@ class LocalDb extends Dexie {
   meta!: Table<MetaEntry, string>;
   vault!: Table<VaultEntry, string>;
   constructor() {
-    super('p0rtal');
+    super('p0rtal'); // first project name, kept: renaming would strand each device's offline data
     const stores: Record<string, string> = { outbox: '++seq, [collection+id]', meta: 'key', vault: 'key' };
     for (const c of COLLECTION_NAMES) stores[c] = ['id', COLLECTIONS[c].indexes].filter(Boolean).join(', ');
     this.version(LOCAL_DB_VERSION).stores(stores);

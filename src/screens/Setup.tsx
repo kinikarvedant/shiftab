@@ -4,14 +4,15 @@ import { Store, KeyRound, UserRound, Loader2 } from 'lucide-react';
 import { api, errorText } from '../lib/api.ts';
 import { passwordLogin } from '../lib/session.ts';
 import { PRESETS } from '../../shared/presets.ts';
+import { DEFAULT_SETTINGS } from '../../shared/schema.ts';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'AUD', 'CAD', 'NZD', 'SGD', 'AED', 'JPY', 'CHF', 'ZAR', 'MXN', 'BRL'];
 
 export function Setup() {
   const zones = useMemo(() => (Intl as any).supportedValuesOf?.('timeZone') as string[] ?? [], []);
   const [f, setF] = useState({
-    code: '', name: '', preset: 'restaurant', currency: 'USD', locale: navigator.language || 'en-US',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, ownerName: '', email: '', password: '', password2: '', pin: '', pin2: '',
+    code: '', name: '', preset: 'restaurant', currency: DEFAULT_SETTINGS.currency!, locale: DEFAULT_SETTINGS.locale!,
+    timezone: DEFAULT_SETTINGS.timezone!, ownerName: '', email: '', password: '', password2: '', pin: '', pin2: '',
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -41,7 +42,7 @@ export function Setup() {
   return (
     <main className="center-page">
       <form className="card pad-lg auth-card wide stack lg" onSubmit={submit}>
-        <div className="hero-mark"><img src="/icon.svg" alt="" /><div><h1>Welcome to p0rtal</h1><p className="muted">Set up your venue in a minute.</p></div></div>
+        <div className="hero-mark"><img src="/icon.svg" alt="" /><div><h1>Welcome to Shiftab</h1><p className="muted">Set up your venue in a minute.</p></div></div>
 
         <section className="stack">
           <h2 className="row nowrap"><KeyRound /> Setup code</h2>

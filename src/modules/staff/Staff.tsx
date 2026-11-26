@@ -1,18 +1,18 @@
-// Staff: people, groups, PINs, back-office logins and pay. Lists render from synced local data;
+// Staff: people, roles (groups in the data), PINs, back-office logins and pay. Lists render from synced local data;
 // every change goes through the online staff/finance APIs and comes back via sync.
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, Check, Clock, Eye, KeyRound, Lock, Mail, Pencil, Plus, Search, ShieldCheck, Trash2, UserPlus, UserX, Users, Wallet, WifiOff } from 'lucide-react';
+import { Camera, Check, ChefHat, Clock, Eye, KeyRound, Lock, Mail, Pencil, Plus, Search, ShieldCheck, Trash2, UserPlus, UserX, Users, Wallet, WifiOff } from 'lucide-react';
 import { table } from '../../lib/db.ts';
 import { api, ApiError, errorText } from '../../lib/api.ts';
-import { syncNow, useSyncState, write } from '../../lib/sync.ts';
+import { remove, syncNow, useSyncState, write } from '../../lib/sync.ts';
 import { useApp, useCan } from '../../lib/session.ts';
-import { useFmt } from '../../lib/format.ts';
+import { useFmt, uuid } from '../../lib/format.ts';
 import { photoFromFile } from '../../lib/photo.ts';
 import { Avatar, Dialog, Empty, confirmBox, toast } from '../../ui/index.tsx';
 import { ALL_PERMISSIONS, outranks, PERMISSIONS, SENSITIVE, type GroupLike, type Permission } from '../../../shared/permissions.ts';
 import { parseMoney } from '../../../shared/money.ts';
-import type { GroupDoc, UserDoc } from '../../../shared/schema.ts';
+import { Station, type GroupDoc, type StationDoc, type UserDoc } from '../../../shared/schema.ts';
 import type { ModuleProps } from '../index.ts';
 import './staff.css';
 
@@ -58,10 +58,11 @@ export default function Staff(_: ModuleProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [group, setGroup] = useState<GroupDoc | 'new' | null>(null);
   const data = useLiveQuery(async () => {
-    const [users, groups, open] = await Promise.all([
-      table('users').toArray(), table('groups').toArray(), table('shifts').filter((s) => s.clockOut == null).toArray(),
+    const [users, groups, open, stations] = await Promise.all([
+      table('users').toArray(), table('groups').toArray(), table('shifts').filter((s) => s.clockOut == null).toArray(), table('stations').toArray(),
     ]);
-    return { users: users.sort((a, b) => a.name.localeCompare(b.name)), groups: groups.sort((a, b) => b.rank - a.rank), onShift: new Set(open.map((s) => s.userId)) };
+    return { users: users.sort((a, b) => a.name.localeCompare(b.name)), groups: groups.sort((a, b) => b.rank - a.rank), onShift: new Set(open.map((s) => s.userId)),
+      stations: stations.sort((a, b) => a.name.localeCompare(b.name)) };
   }, []);
   if (!data || !session) return <div className="page"><div className="skeleton" style={{ height: '12rem' }} /></div>;
 
@@ -79,11 +80,11 @@ export default function Staff(_: ModuleProps) {
       <div className="page-head">
         <div>
           <h1>Staff</h1>
-          <p>{data.users.filter((u) => u.active).length} active people · {data.groups.length} groups</p>
+          <p>{data.users.filter((u) => u.active).length} active people · {data.groups.length} roles</p>
         </div>
         {tab === 'people'
           ? <button className="btn primary" disabled={!assignable.length} onClick={() => setAdding(true)}><UserPlus /> Add person</button>
-          : <button className="btn primary" disabled={mine.rank <= 1} onClick={() => setGroup('new')}><Plus /> New group</button>}
+          : <button className="btn primary" disabled={mine.rank <= 1} onClick={() => setGroup('new')}><Plus /> New role</button>}
       </div>
 
       <div className="stack">
@@ -91,7 +92,7 @@ export default function Staff(_: ModuleProps) {
         <div className="row">
           <div className="seg" role="group" aria-label="Section">
             <button aria-pressed={tab === 'people'} onClick={() => setTab('people')}>People</button>
-            <button aria-pressed={tab === 'groups'} onClick={() => setTab('groups')}>Groups</button>
+            <button aria-pressed={tab === 'groups'} onClick={() => setTab('groups')}>Roles</button>
           </div>
           {tab === 'people' && <>
             <div className="seg" role="group" aria-label="Show">
@@ -107,7 +108,7 @@ export default function Staff(_: ModuleProps) {
 
         {tab === 'people' ? (
           people.length === 0 ? (
-            <Empty icon={<Users />} title={term ? 'Nobody matches' : 'No people yet'}>{term ? 'Try another name, or show all people.' : 'Add your team to give them PINs and groups.'}</Empty>
+            <Empty icon={<Users />} title={term ? 'Nobody matches' : 'No people yet'}>{term ? 'Try another name, or show all people.' : 'Add your team to give them PINs and roles.'}</Empty>
           ) : (
             <div className="grid-auto">
               {people.map((u) => {
@@ -120,6 +121,9 @@ export default function Staff(_: ModuleProps) {
                       {u.email && <span className="xs muted ellipsis">{u.email}</span>}
                       <span className="badges">
                         {g && <GroupPill g={g} />}
+                        {data.stations.filter((s) => s.userIds.includes(u.id)).map((s) => (
+                          <span key={s.id} className="pill"><ChefHat aria-hidden="true" style={{ color: s.color }} />{s.name}</span>
+                        ))}
                         {!u.active && <span className="pill danger"><UserX aria-hidden="true" />Inactive</span>}
                         {data.onShift.has(u.id) && <span className="pill success"><Clock aria-hidden="true" />On shift</span>}
                         {!u.pinCheck && <span className="pill warning"><KeyRound aria-hidden="true" />No PIN</span>}
@@ -136,13 +140,13 @@ export default function Staff(_: ModuleProps) {
           <>
             <div className="table-wrap">
               <table className="data">
-                <thead><tr><th>Group</th><th className="num">Rank</th><th className="num">Members</th><th className="num">Permissions</th><th><span className="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>Role</th><th className="num">Seniority</th><th className="num">Members</th><th className="num">Permissions</th><th><span className="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   {data.groups.map((g) => {
                     const ro = !outranks(mine, g);
                     return (
                       <tr key={g.id}>
-                        <td><span className="row nowrap"><span className="dot" style={{ background: g.color }} aria-hidden="true" /><strong>{g.name}</strong>{g.id === mine.id && <span className="pill accent">Your group</span>}</span></td>
+                        <td><span className="row nowrap"><span className="dot" style={{ background: g.color }} aria-hidden="true" /><strong>{g.name}</strong>{g.id === mine.id && <span className="pill accent">Your role</span>}</span></td>
                         <td className="num">{g.rank}</td>
                         <td className="num">{data.users.filter((u) => u.groupId === g.id).length}</td>
                         <td className="num">{g.permissions.length} / {ALL_PERMISSIONS.length}</td>
@@ -155,14 +159,16 @@ export default function Staff(_: ModuleProps) {
                 </tbody>
               </table>
             </div>
-            <p className="small muted">Higher ranks manage lower ones. You can create and edit groups ranked below {mine.rank}, and only grant permissions you hold.</p>
+            <p className="small muted">Seniority decides who manages whom: people can only add, edit and pay people in roles less senior than their own,
+              and can only hand out permissions they have themselves, so nobody can promote themselves or a friend. Your role's seniority is {mine.rank}.</p>
+            <Stations stations={data.stations} users={data.users.filter((u) => u.active)} />
           </>
         )}
       </div>
 
-      {adding && <AddPerson groups={assignable} onClose={() => setAdding(false)} />}
+      {adding && <AddPerson groups={assignable} all={data.groups} mine={mine} onClose={() => setAdding(false)} />}
       {editUser && <PersonDialog key={editUser.id} user={editUser} me={me} mine={mine} groups={data.groups} onClose={() => setEditing(null)} />}
-      {group && <GroupDialog key={group === 'new' ? 'new' : group.id} group={group === 'new' ? null : group} mine={mine}
+      {group && <GroupDialog key={group === 'new' ? 'new' : group.id} group={group === 'new' ? null : group} mine={mine} all={data.groups}
         members={group === 'new' ? 0 : data.users.filter((u) => u.groupId === group.id).length} onClose={() => setGroup(null)} />}
     </div>
   );
@@ -189,10 +195,13 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
 const pinInput = { type: 'password', inputMode: 'numeric', pattern: '[0-9]{4,8}', maxLength: 8, autoComplete: 'new-password' } as const;
 
 // ---------- add person ----------
-function AddPerson({ groups, onClose }: { groups: GroupDoc[]; onClose: () => void }) {
+const NEW_ROLE = '__new';
+
+function AddPerson({ groups, all, mine, onClose }: { groups: GroupDoc[]; all: GroupDoc[]; mine: GroupLike; onClose: () => void }) {
   const [busy, run] = useOnline();
   const [name, setName] = useState('');
   const [groupId, setGroupId] = useState(groups[groups.length - 1]?.id ?? '');
+  const [newRole, setNewRole] = useState(false);
   const [color, setColor] = useState<string>(SWATCHES[0][0]);
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
@@ -209,11 +218,12 @@ function AddPerson({ groups, onClose }: { groups: GroupDoc[]; onClose: () => voi
     </>}>
       <form id="add-person" className="stack" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <label className="field"><span>Name</span><input required autoFocus maxLength={60} value={name} onChange={(e) => setName(e.target.value)} /></label>
-        <label className="field"><span>Group</span>
-          <select required value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-            {groups.map((g) => <option key={g.id} value={g.id}>{g.name} (rank {g.rank})</option>)}
+        <label className="field"><span>Role</span>
+          <select required value={groupId} onChange={(e) => (e.target.value === NEW_ROLE ? setNewRole(true) : setGroupId(e.target.value))}>
+            {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            {mine.rank > 1 && <option value={NEW_ROLE}>＋ New role…</option>}
           </select>
-          <span className="hint">Only groups ranked below yours.</span>
+          <span className="hint">What they do here, e.g. Server or Dishwasher. You can give roles less senior than your own.</span>
         </label>
         <ColorPicker value={color} onChange={setColor} />
         <div className="form-grid">
@@ -221,6 +231,7 @@ function AddPerson({ groups, onClose }: { groups: GroupDoc[]; onClose: () => voi
           <label className="field"><span>Repeat PIN</span><input {...pinInput} required={!!pin} value={pin2} onChange={(e) => setPin2(e.target.value)} /></label>
         </div>
       </form>
+      {newRole && <GroupDialog group={null} mine={mine} all={all} members={0} onClose={() => setNewRole(false)} onCreated={setGroupId} />}
     </Dialog>
   );
 }
@@ -267,8 +278,8 @@ function PersonDialog({ user: u, me, mine, groups, onClose }: { user: UserDoc; m
 
   return (
     <Dialog open wide onClose={onClose} title={u.name} footer={<button className="btn ghost" onClick={onClose}>Done</button>}>
-      {!editable && <div className="banner warning"><Lock /> <span className="grow">{u.name} is in {g?.name ?? 'a group'}, ranked at or above you, so you can only view their profile.</span></div>}
-      {self && <div className="banner"><Lock /> <span className="grow">This is you. You can change your name, colour, photo and PIN; someone senior changes your group, status and back-office login.</span></div>}
+      {!editable && <div className="banner warning"><Lock /> <span className="grow">{u.name}'s role ({g?.name ?? 'unknown'}) is as senior as yours or more, so you can only view their profile.</span></div>}
+      {self && <div className="banner"><Lock /> <span className="grow">This is you. You can change your name, colour, photo and PIN; someone senior changes your role, status and back-office login.</span></div>}
 
       <div className="row">
         <Avatar user={{ id: u.id, name: name || u.name, color }} size="lg" />
@@ -280,11 +291,11 @@ function PersonDialog({ user: u, me, mine, groups, onClose }: { user: UserDoc; m
         <fieldset className="plain stack" disabled={!editable || busy}>
           <div className="form-grid">
             <label className="field"><span>Name</span><input required maxLength={60} value={name} onChange={(e) => setName(e.target.value)} /></label>
-            <label className="field"><span>Group</span>
+            <label className="field"><span>Role</span>
               <select value={groupId} disabled={!manage} onChange={(e) => setGroupId(e.target.value)}>
-                {(manage ? groups.filter((x) => outranks(mine, x)) : groups.filter((x) => x.id === u.groupId)).map((x) => <option key={x.id} value={x.id}>{x.name} (rank {x.rank})</option>)}
+                {(manage ? groups.filter((x) => outranks(mine, x)) : groups.filter((x) => x.id === u.groupId)).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
               </select>
-              {self && <span className="hint">You can't change your own group.</span>}
+              {self && <span className="hint">You can't change your own role.</span>}
             </label>
           </div>
           <ColorPicker value={color} onChange={setColor} />
@@ -399,43 +410,161 @@ function Pay({ user, canEdit }: { user: UserDoc; canEdit: boolean }) {
   );
 }
 
+// ---------- kitchen stations (sub-roles) ----------
+function Stations({ stations, users }: { stations: StationDoc[]; users: UserDoc[] }) {
+  const cats = useLiveQuery(() => table('categories').orderBy('sort').toArray(), [], []);
+  const [edit, setEdit] = useState<StationDoc | 'new' | null>(null);
+  const names = (ids: string[], list: { id: string; name: string }[]) => list.filter((x) => ids.includes(x.id)).map((x) => x.name).join(', ') || '–';
+  return (
+    <section className="stack" aria-labelledby="stations-h" style={{ marginTop: 'var(--space-5)' }}>
+      <div className="row between">
+        <div className="grow">
+          <h2 id="stations-h">Kitchen stations</h2>
+          <p className="small muted">Sub-roles such as Starter prep, Tandoor or Desserts. People on a station see only its dishes on the kitchen screen,
+            wherever they sign in, and can switch to the whole order.</p>
+        </div>
+        <button className="btn outline" onClick={() => setEdit('new')}><Plus /> New station</button>
+      </div>
+      {stations.length === 0 ? <p className="muted small">No stations yet. Without one, each kitchen screen picks its own courses.</p> : (
+        <div className="table-wrap">
+          <table className="data">
+            <thead><tr><th>Station</th><th>Dishes from</th><th>People</th><th><span className="sr-only">Actions</span></th></tr></thead>
+            <tbody>
+              {stations.map((s) => (
+                <tr key={s.id}>
+                  <td><span className="row nowrap"><span className="dot" style={{ background: s.color }} aria-hidden="true" /><strong>{s.name}</strong></span></td>
+                  <td className="ellipsis" style={{ maxWidth: '20rem' }}>{names(s.categoryIds, cats)}</td>
+                  <td className="ellipsis" style={{ maxWidth: '20rem' }}>{names(s.userIds, users)}</td>
+                  <td className="num"><button className="btn outline" onClick={() => setEdit(s)} aria-label={`Edit ${s.name}`}><Pencil /> Edit</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {edit && <StationDialog key={edit === 'new' ? 'new' : edit.id} station={edit === 'new' ? null : edit} cats={cats} users={users} onClose={() => setEdit(null)} />}
+    </section>
+  );
+}
+
+function StationDialog({ station, cats, users, onClose }: { station: StationDoc | null; cats: { id: string; name: string; color: string }[]; users: UserDoc[]; onClose: () => void }) {
+  const [name, setName] = useState(station?.name ?? '');
+  const [color, setColor] = useState<string>(station?.color ?? SWATCHES[7][0]);
+  const [catIds, setCatIds] = useState<string[]>(station?.categoryIds ?? []);
+  const [userIds, setUserIds] = useState<string[]>(station?.userIds ?? []);
+  const [busy, setBusy] = useState(false);
+  const flip = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+
+  async function save() {
+    const r = Station.safeParse({ name: name.trim(), color, categoryIds: catIds, userIds });
+    if (!r.success) return toast('Give the station a name (up to 40 characters).', 'error');
+    setBusy(true);
+    try { await write('stations', { id: station?.id ?? uuid(), ...r.data }); toast(station ? 'Station saved' : `${r.data.name} station created`, 'success'); onClose(); }
+    catch (e) { toast(errorText(e), 'error'); } finally { setBusy(false); }
+  }
+  async function del() {
+    if (!station || !(await confirmBox({ title: `Delete ${station.name}?`, message: 'Its people go back to seeing every dish (or their screen\'s own course tabs).', confirm: 'Delete station', danger: true }))) return;
+    try { await remove('stations', station.id); onClose(); } catch (e) { toast(errorText(e), 'error'); }
+  }
+
+  return (
+    <Dialog open wide onClose={onClose} title={station ? station.name : 'New station'} footer={<>
+      {station && <button className="btn danger" disabled={busy} onClick={del}><Trash2 /> Delete</button>}
+      <span className="spacer" />
+      <button className="btn ghost" onClick={onClose}>Cancel</button>
+      <button className="btn primary" type="submit" form="station-form" disabled={busy}>{station ? 'Save station' : 'Create station'}</button>
+    </>}>
+      <form id="station-form" className="stack" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+        <label className="field"><span>Name</span><input required autoFocus={!station} maxLength={40} placeholder="e.g. Tandoor" value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <ColorPicker value={color} onChange={setColor} />
+        <fieldset className="plain stack sm">
+          <legend>Dishes it makes</legend>
+          <div className="row">
+            {cats.map((c) => (
+              <button key={c.id} type="button" className="chip" aria-pressed={catIds.includes(c.id)} onClick={() => setCatIds((ids) => flip(ids, c.id))}>
+                <span className="dot" style={{ background: c.color }} aria-hidden="true" />{c.name}
+              </button>
+            ))}
+          </div>
+          <span className="small muted">Menu categories this station cooks. For a station that makes part of a category, give those dishes their own category in Settings → Menu.</span>
+        </fieldset>
+        <fieldset className="plain stack sm">
+          <legend>Who works it</legend>
+          <div className="row">
+            {users.map((u) => (
+              <button key={u.id} type="button" className="chip" aria-pressed={userIds.includes(u.id)} onClick={() => setUserIds((ids) => flip(ids, u.id))}>
+                <Avatar user={u} size="sm" />{u.name}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      </form>
+    </Dialog>
+  );
+}
+
 // ---------- groups ----------
-function GroupDialog({ group, mine, members, onClose }: { group: GroupDoc | null; mine: GroupLike; members: number; onClose: () => void }) {
+function GroupDialog({ group, mine, all, members, onClose, onCreated }: {
+  group: GroupDoc | null; mine: GroupLike; all: GroupDoc[]; members: number; onClose: () => void; onCreated?: (id: string) => void;
+}) {
   const [busy, run] = useOnline();
   const ro = !!group && !outranks(mine, group);
   const maxRank = mine.rank - 1;
   const orig = group?.permissions ?? [];
   const [name, setName] = useState(group?.name ?? '');
-  const [rank, setRank] = useState(String(group?.rank ?? Math.max(1, Math.min(10, maxRank))));
+  const blankRank = String(Math.max(1, Math.min(10, maxRank)));
+  const blankPerms = (['timeclock.self'] as Permission[]).filter((p) => mine.permissions.includes(p));
+  const [rank, setRank] = useState(group ? String(group.rank) : blankRank);
   const [color, setColor] = useState<string>(group?.color ?? SWATCHES[1][0]);
-  const [perms, setPerms] = useState<Permission[]>(group?.permissions ?? (['timeclock.self'] as Permission[]).filter((p) => mine.permissions.includes(p)));
+  const [perms, setPerms] = useState<Permission[]>(group?.permissions ?? blankPerms);
   const toggle = (p: Permission) => setPerms((ps) => (ps.includes(p) ? ps.filter((x) => x !== p) : [...ps, p]));
+  const templates = all.filter((x) => outranks(mine, x)); // a new role can start as a copy of one you manage
+  const startFrom = (id: string) => {
+    const t = templates.find((x) => x.id === id);
+    setRank(t ? String(t.rank) : blankRank);
+    setPerms(t ? t.permissions.filter((p) => mine.permissions.includes(p)) : blankPerms);
+  };
+  const ladder = [...all].sort((a, b) => b.rank - a.rank).map((x) => `${x.name} ${x.rank}`).join(' · ');
 
   async function save() {
     const body = { name: name.trim(), rank: Number(rank), color, permissions: ALL_PERMISSIONS.filter((p) => perms.includes(p)) };
-    if (await run(() => (group ? api('PATCH', `/api/groups/${group.id}`, body) : api('POST', '/api/groups', body)), group ? 'Group saved' : 'Group created')) onClose();
+    let id = group?.id ?? '';
+    const ok = await run(async () => {
+      if (group) await api('PATCH', `/api/groups/${group.id}`, body);
+      else id = (await api<{ id: string }>('POST', '/api/groups', body)).id;
+    }, group ? 'Role saved' : `${body.name} role created`);
+    if (ok) { if (!group) onCreated?.(id); onClose(); }
   }
   async function del() {
-    if (!group || !(await confirmBox({ title: `Delete ${group.name}?`, message: 'The group and its permissions are removed.', confirm: 'Delete group', danger: true }))) return;
-    if (await run(() => api('DELETE', `/api/groups/${group.id}`), 'Group deleted')) onClose();
+    if (!group || !(await confirmBox({ title: `Delete ${group.name}?`, message: 'The role and its permissions are removed.', confirm: 'Delete role', danger: true }))) return;
+    if (await run(() => api('DELETE', `/api/groups/${group.id}`), 'Role deleted')) onClose();
   }
 
   return (
-    <Dialog open wide onClose={onClose} title={group ? group.name : 'New group'} footer={<>
+    <Dialog open wide onClose={onClose} title={group ? group.name : 'New role'} footer={<>
       {group && !ro && <button className="btn danger" disabled={busy || members > 0} onClick={del}><Trash2 /> Delete</button>}
       <span className="spacer" />
       <button className="btn ghost" onClick={onClose}>{ro ? 'Close' : 'Cancel'}</button>
-      {!ro && <button className="btn primary" type="submit" form="group-form" disabled={busy}>{group ? 'Save group' : 'Create group'}</button>}
+      {!ro && <button className="btn primary" type="submit" form="group-form" disabled={busy}>{group ? 'Save role' : 'Create role'}</button>}
     </>}>
-      {ro && <div className="banner warning"><Lock /> <span className="grow">{group!.id === mine.id ? 'This is your own group — someone senior has to change it.' : `This group ranks at or above yours (${mine.rank}), so it's read-only for you.`}</span></div>}
-      {group && !ro && members > 0 && <p className="small muted">{members} {members === 1 ? 'person is' : 'people are'} in this group. Move them to another group before deleting it.</p>}
+      {ro && <div className="banner warning"><Lock /> <span className="grow">{group!.id === mine.id ? 'This is your own role — someone more senior has to change it.' : "This role is as senior as yours or more, so it's read-only for you."}</span></div>}
+      {group && !ro && members > 0 && <p className="small muted">{members} {members === 1 ? 'person has' : 'people have'} this role. Give them another role before deleting it.</p>}
       <form id="group-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <fieldset className="plain stack" disabled={ro || busy}>
           <div className="form-grid">
-            <label className="field"><span>Name</span><input required maxLength={40} value={name} onChange={(e) => setName(e.target.value)} /></label>
-            <label className="field"><span>Rank</span>
+            <label className="field"><span>Name</span><input required autoFocus={!group} maxLength={40} placeholder="e.g. Dishwasher" value={name} onChange={(e) => setName(e.target.value)} /></label>
+            {!group && templates.length > 0 && (
+              <label className="field"><span>Start from</span>
+                <select defaultValue="" onChange={(e) => startFrom(e.target.value)}>
+                  <option value="">Blank (clock in and out only)</option>
+                  {templates.map((x) => <option key={x.id} value={x.id}>Same as {x.name}</option>)}
+                </select>
+                <span className="hint">Copies that role's permissions and seniority. Adjust below.</span>
+              </label>
+            )}
+            <label className="field"><span>Seniority</span>
               <input type="number" required min={1} max={Math.max(1, maxRank)} step={1} inputMode="numeric" value={rank} onChange={(e) => setRank(e.target.value)} />
-              <span className="hint">1 to {maxRank}: higher ranks manage lower ones.</span>
+              <span className="hint">1 to {maxRank}. A role can be managed by more senior roles. Now: {ladder}.</span>
             </label>
           </div>
           <ColorPicker value={color} onChange={setColor} />

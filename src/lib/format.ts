@@ -4,15 +4,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { table } from './db.ts';
 import { formatMoney } from '../../shared/money.ts';
 import { businessDay } from '../../shared/time.ts';
+import { DEFAULT_SETTINGS } from '../../shared/schema.ts';
 
 export const useSettings = () => useLiveQuery(() => table('settings').get('business'), []);
 
 export function useFmt() {
   const s = useSettings();
   return useMemo(() => {
-    const currency = s?.currency ?? 'USD';
-    const locale = s?.locale ?? navigator.language;
-    const tz = s?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const currency = s?.currency ?? DEFAULT_SETTINGS.currency!;
+    const locale = s?.locale ?? DEFAULT_SETTINGS.locale!;
+    const tz = s?.timezone ?? DEFAULT_SETTINGS.timezone!;
     const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: tz });
     const date = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz });
     const dateTime = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: tz });

@@ -63,6 +63,8 @@ export const User = z.strictObject({
   email: z.string().max(254).nullable(),
   pinSalt: z.string().max(64).nullable(),
   pinCheck: z.string().max(64).nullable(),
+  // lets the PIN pad submit on the last digit. Leaks ~nothing: offline guessing tries shorter PINs first anyway
+  pinLen: z.number().int().min(4).max(8).nullable().default(null),
   pwdSalt: z.string().max(64).nullable().default(null), // password-derived approval key (see ELEVATED)
   pwdCheck: z.string().max(64).nullable().default(null),
   hasPassword: z.boolean(),
@@ -74,6 +76,9 @@ export const Photo = z.strictObject({
 });
 
 export const Category = z.strictObject({ name: text(40), sort: z.int(), color });
+
+/** Kitchen station, a sub-role such as Tandoor or Desserts: the menu categories it cooks and who works it. */
+export const Station = z.strictObject({ name: text(40), color, categoryIds: z.array(ref).max(100), userIds: z.array(ref).max(500) });
 
 export const Item = z.strictObject({
   name: text(80),
@@ -164,6 +169,7 @@ export const COLLECTIONS = {
   photos: { schema: Photo, indexes: '', windowed: false, apiOnly: false },
   categories: { schema: Category, indexes: 'sort', windowed: false, apiOnly: false },
   items: { schema: Item, indexes: 'categoryId', windowed: false, apiOnly: false },
+  stations: { schema: Station, indexes: '', windowed: false, apiOnly: false },
   areas: { schema: Area, indexes: 'sort', windowed: false, apiOnly: false },
   tables: { schema: Table, indexes: 'areaId', windowed: false, apiOnly: false },
   reservations: { schema: Reservation, indexes: 'start, tableId', windowed: true, apiOnly: false },
@@ -174,7 +180,7 @@ export const COLLECTIONS = {
 } as const;
 
 /** Bump when you add a collection or change `indexes` (Dexie needs a new version number). */
-export const LOCAL_DB_VERSION = 1;
+export const LOCAL_DB_VERSION = 2;
 
 export type CollectionName = keyof typeof COLLECTIONS;
 export const COLLECTION_NAMES = Object.keys(COLLECTIONS) as CollectionName[];
@@ -195,6 +201,7 @@ export type PaymentDoc = Doc<'payments'>;
 export type ShiftDoc = Doc<'shifts'>;
 export type ReservationDoc = Doc<'reservations'>;
 export type TableDoc = Doc<'tables'>;
+export type StationDoc = Doc<'stations'>;
 
 /** A queued change as sent to /api/sync/push. */
 export const Mutation = z.strictObject({
@@ -212,6 +219,8 @@ export type Mutation = z.infer<typeof Mutation>;
 
 /** PIN key derivation, identical on server (node:crypto) and terminals (WebCrypto). */
 export const PIN_ITERATIONS = 200_000;
+// These labels keep the project's first name (p0rtal) on purpose: they're mixed into every stored PIN and
+// password check, so changing them would lock everyone out.
 export const PIN_CHECK_LABEL = 'p0rtal-pin-check';
 export const PIN_RE = /^\d{4,8}$/;
 export const PWD_ITERATIONS = 600_000;
@@ -223,9 +232,9 @@ export const signingString = (m: Omit<Mutation, 'sig'>, dataHash: string) =>
 
 export const DEFAULT_SETTINGS: z.input<typeof Settings> = {
   name: 'My Venue',
-  currency: 'USD',
-  locale: 'en-US',
-  timezone: 'UTC',
+  currency: 'AUD',
+  locale: 'en-AU',               // shows AUD as "$" and dates day-first
+  timezone: 'Australia/Melbourne',
   taxRateBp: 0,
   taxInclusive: false,
   serviceChargeBp: 0,

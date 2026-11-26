@@ -1,11 +1,12 @@
 // Menu (categories + items) and floor plan (areas + tables). All local-first writes.
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Armchair, LayoutGrid, Pencil, Plus, UtensilsCrossed } from 'lucide-react';
+import { Armchair, Camera, ImageIcon, LayoutGrid, Pencil, Plus, UtensilsCrossed } from 'lucide-react';
 import { table } from '../../lib/db.ts';
 import { remove, write } from '../../lib/sync.ts';
 import { useFmt, uuid } from '../../lib/format.ts';
-import { ask, confirmBox, Empty, toast } from '../../ui/index.tsx';
+import { photoFromFile } from '../../lib/photo.ts';
+import { ask, confirmBox, Empty, FoldToggle, toast, useFold } from '../../ui/index.tsx';
 import { minorDigits, parseMoney } from '../../../shared/money.ts';
 import { Area, Category, Item, Table } from '../../../shared/schema.ts';
 import { bySort, Editor, Field, fieldErrors, move, MoveButtons, nextSort, useBusy } from './lib.tsx';
@@ -15,19 +16,22 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 // ---------- Menu ----------
 interface CatDraft { id: string; isNew: boolean; name: string; color: string; sort: number }
-interface ItemDraft { id: string; isNew: boolean; name: string; price: string; categoryId: string; fromCat: string; active: boolean; sendToKitchen: boolean; sort: number }
+interface ItemDraft { id: string; isNew: boolean; name: string; price: string; categoryId: string; fromCat: string; active: boolean; sendToKitchen: boolean; sort: number;
+  photo: string | null; photoChanged: boolean }
 
 export function Menu() {
   const fmt = useFmt();
   const data = useLiveQuery(async () => {
     const [cats, items] = await Promise.all([table('categories').toArray(), table('items').toArray()]);
-    return { cats: cats.sort(bySort), items: items.sort(bySort) };
+    const photos = new Map((await table('photos').bulkGet(items.map((i) => i.id))).flatMap((p) => (p ? [[p.id, p.dataUrl] as const] : [])));
+    return { cats: cats.sort(bySort), items: items.sort(bySort), photos };
   }, []);
   const [sel, setSel] = useState('');
   const [cat, setCat] = useState<CatDraft | null>(null);
   const [item, setItem] = useState<ItemDraft | null>(null);
   const [err, setErr] = useState<Record<string, string>>({});
   const [busy, run] = useBusy();
+  const [folded, fold] = useFold('menu');
   if (!data) return skeleton;
 
   const current = data.cats.find((c) => c.id === sel) ?? data.cats[0];
@@ -45,7 +49,17 @@ export function Menu() {
     const sort = d.isNew || d.categoryId !== d.fromCat ? nextSort(inCat(d.categoryId)) : d.sort;
     const r = Item.safeParse({ name: d.name, categoryId: d.categoryId, price: parseMoney(d.price, fmt.currency) ?? NaN, active: d.active, sort, sendToKitchen: d.sendToKitchen });
     setErr(fieldErrors(r, { name: 'Enter a name (up to 80 characters).', price: `Enter a price like ${(450 / 10 ** digits).toFixed(digits)}.`, categoryId: 'Pick a category.' }));
-    if (r.success) void run(async () => { await write('items', { id: d.id, ...r.data }); close(); });
+    if (r.success) void run(async () => {
+      await write('items', { id: d.id, ...r.data }); // the dish first: its photo is only accepted once the dish exists
+      if (d.photoChanged && d.photo) await write('photos', { id: d.id, dataUrl: d.photo });
+      if (d.photoChanged && !d.photo && data.photos.has(d.id)) await remove('photos', d.id);
+      close();
+    });
+  };
+  const pickPhoto = async (file: File | undefined) => {
+    if (!file || !item) return;
+    try { setItem({ ...item, photo: await photoFromFile(file, 320), photoChanged: true }); }
+    catch (e) { toast(e instanceof Error ? e.message : 'That image could not be read.', 'error'); }
   };
   const deleteCat = async (d: CatDraft) => {
     if (await confirmBox({ title: `Delete ${d.name}?`, message: 'The category is empty, so nothing else changes.', confirm: 'Delete', danger: true }))
@@ -53,22 +67,25 @@ export function Menu() {
   };
   const deleteItem = async (d: ItemDraft) => {
     if (await confirmBox({ title: `Delete ${d.name}?`, message: 'Past orders keep their own copy of the name and price. To just hide it from the till, switch it off instead.', confirm: 'Delete', danger: true }))
-      void run(async () => { await remove('items', d.id); close(); });
+      void run(async () => { if (data.photos.has(d.id)) await remove('photos', d.id); await remove('items', d.id); close(); });
   };
   const newCat = () => setCat({ id: uuid(), isNew: true, name: '', color: '#8e8cff', sort: nextSort(data.cats) });
   const editItem = (i: (typeof items)[number] | null) => current && setItem(i
-    ? { id: i.id, isNew: false, name: i.name, price: (i.price / 10 ** digits).toFixed(digits), categoryId: i.categoryId, fromCat: i.categoryId, active: i.active, sendToKitchen: i.sendToKitchen, sort: i.sort }
-    : { id: uuid(), isNew: true, name: '', price: '', categoryId: current.id, fromCat: current.id, active: true, sendToKitchen: true, sort: 0 });
+    ? { id: i.id, isNew: false, name: i.name, price: (i.price / 10 ** digits).toFixed(digits), categoryId: i.categoryId, fromCat: i.categoryId, active: i.active, sendToKitchen: i.sendToKitchen, sort: i.sort,
+        photo: data.photos.get(i.id) ?? null, photoChanged: false }
+    : { id: uuid(), isNew: true, name: '', price: '', categoryId: current.id, fromCat: current.id, active: true, sendToKitchen: true, sort: 0, photo: null, photoChanged: false });
 
   return (
-    <div className="set-split">
-      <section className="card stack" aria-labelledby="cats-h">
-        <div className="row between"><h2 id="cats-h">Categories</h2><button className="btn outline" onClick={newCat}><Plus aria-hidden="true" /> Add</button></div>
+    <div className={`set-split${folded ? ' folded' : ''}`}>
+      <section className="card stack set-side" aria-labelledby="cats-h">
+        <div className="row between nowrap"><h2 id="cats-h" className="ellipsis">Categories</h2>
+          <span className="row nowrap"><button className="btn outline side-extra" onClick={newCat}><Plus aria-hidden="true" /> Add</button>
+            <FoldToggle folded={folded} onToggle={() => fold(!folded)} what="categories" /></span></div>
         {data.cats.length === 0 ? <Empty icon={<UtensilsCrossed />} title="No categories yet">Add one, then put items in it.</Empty> : (
           <ul className="set-list">
             {data.cats.map((c, i) => (
               <li key={c.id} className="set-row">
-                <button className="set-main" aria-pressed={c.id === current?.id} onClick={() => setSel(c.id)}>
+                <button className="set-main" aria-pressed={c.id === current?.id} onClick={() => { setSel(c.id); fold(true); }}>
                   <span className="swatch" style={{ background: c.color }} aria-hidden="true" />
                   <span className="grow ellipsis strong">{c.name}</span>
                   <span className="muted small">{inCat(c.id).length}</span>
@@ -93,6 +110,7 @@ export function Menu() {
               {items.map((it, i) => (
                 <li key={it.id} className="set-row">
                   <button className="set-main" onClick={() => editItem(it)} aria-label={`Edit ${it.name}, ${fmt.money(it.price)}${it.active ? '' : ', off the menu'}`}>
+                    {data.photos.has(it.id) && <img className="dish-thumb" src={data.photos.get(it.id)} alt="" />}
                     <span className="grow ellipsis strong">{it.name}</span>
                     {!it.active && <span className="pill">Off</span>}
                     <span className="money">{fmt.money(it.price)}</span>
@@ -135,6 +153,17 @@ export function Menu() {
               {data.cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
+          <div className="field">
+            <span>Photo</span>
+            <div className="row">
+              {item.photo ? <img className="dish-photo" src={item.photo} alt={`${item.name || 'Dish'} photo`} /> : <span className="dish-photo" aria-hidden="true"><ImageIcon /></span>}
+              <label className="btn outline"><Camera aria-hidden="true" /> {item.photo ? 'Change photo' : 'Add photo'}
+                <input type="file" accept="image/*" hidden onChange={(e) => { void pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
+              </label>
+              {item.photo && <button type="button" className="btn ghost" onClick={() => setItem({ ...item, photo: null, photoChanged: true })}>Remove</button>}
+            </div>
+            <span className="hint">Shown on the till button. It's cropped square, so keep the dish in the middle.</span>
+          </div>
           <label className="switch"><input type="checkbox" checked={item.active} onChange={(e) => setItem({ ...item, active: e.target.checked })} /> On sale (shown on the till)</label>
           <label className="switch"><input type="checkbox" checked={item.sendToKitchen} onChange={(e) => setItem({ ...item, sendToKitchen: e.target.checked })} /> Send to kitchen display</label>
         </Editor>
@@ -157,6 +186,7 @@ export function FloorPlan() {
   const [tbl, setTbl] = useState<TableDraft | null>(null);
   const [err, setErr] = useState<Record<string, string>>({});
   const [busy, run] = useBusy();
+  const [folded, fold] = useFold('floor');
   if (!data) return skeleton;
 
   const current = data.areas.find((a) => a.id === sel) ?? data.areas[0];
@@ -209,15 +239,16 @@ export function FloorPlan() {
   };
 
   return (
-    <div className="set-split">
-      <section className="card stack" aria-labelledby="areas-h">
-        <div className="row between"><h2 id="areas-h">Areas</h2>
-          <button className="btn outline" onClick={() => setArea({ id: uuid(), isNew: true, name: '', sort: nextSort(data.areas) })}><Plus aria-hidden="true" /> Add</button></div>
+    <div className={`set-split${folded ? ' folded' : ''}`}>
+      <section className="card stack set-side" aria-labelledby="areas-h">
+        <div className="row between nowrap"><h2 id="areas-h" className="ellipsis">Areas</h2>
+          <span className="row nowrap"><button className="btn outline side-extra" onClick={() => setArea({ id: uuid(), isNew: true, name: '', sort: nextSort(data.areas) })}><Plus aria-hidden="true" /> Add</button>
+            <FoldToggle folded={folded} onToggle={() => fold(!folded)} what="areas" /></span></div>
         {data.areas.length === 0 ? <Empty icon={<LayoutGrid />} title="No areas yet">Add one (e.g. Inside, Terrace, Bar), then its tables.</Empty> : (
           <ul className="set-list">
             {data.areas.map((a, i) => (
               <li key={a.id} className="set-row">
-                <button className="set-main" aria-pressed={a.id === current?.id} onClick={() => setSel(a.id)}>
+                <button className="set-main" aria-pressed={a.id === current?.id} onClick={() => { setSel(a.id); fold(true); }}>
                   <span className="grow ellipsis strong">{a.name}</span><span className="muted small">{inArea(a.id).length}</span>
                 </button>
                 <button className="btn ghost icon" aria-label={`Rename ${a.name}`} onClick={() => setArea({ id: a.id, isNew: false, name: a.name, sort: a.sort })}><Pencil aria-hidden="true" /></button>
