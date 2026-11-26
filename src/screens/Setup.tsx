@@ -42,7 +42,7 @@ export function Setup() {
   return (
     <main className="center-page">
       <form className="card pad-lg auth-card wide stack lg" onSubmit={submit}>
-        <div className="hero-mark"><img src="/icon.svg" alt="" /><div><h1>Welcome to Shiftab</h1><p className="muted">Set up your venue in a minute.</p></div></div>
+        <div className="hero-mark"><img className="brand-mark" src="/icon.svg" alt="" /><div><h1>Welcome to Shiftab</h1><p className="muted">Set up your venue in a minute.</p></div></div>
 
         <section className="stack">
           <h2 className="row nowrap"><KeyRound /> Setup code</h2>

@@ -35,7 +35,11 @@ setSignerSource((): Signer | null => app.session ? { userId: app.session.user.id
 export async function refreshState(): Promise<boolean> {
   try {
     await flushLogout();
-    const s = await api<{ needsSetup: boolean; device: Device | null; user: { id: string } | null; totp: boolean }>('GET', '/api/state', undefined, 5_000);
+    const s = await api<{ needsSetup: boolean; device: Device | null; user: { id: string } | null; totp: boolean; instance?: string }>('GET', '/api/state', undefined, 5_000);
+    // The server was reset to a fresh database (e.g. for a demo): this device's copy belongs to the old one. Start clean.
+    const known = await getMeta<string>('instance');
+    if (s.instance && known && known !== s.instance) { await forgetLocalData(); return true; }
+    if (s.instance && known !== s.instance) await setMeta('instance', s.instance);
     await setMeta('device', s.device);
     set({ needsSetup: s.needsSetup, device: s.device, serverUserId: s.user?.id ?? null, totp: s.totp });
     if (app.session?.level === 'password' && app.session.user.id !== s.user?.id) set({ session: null }); // server session ended
@@ -44,6 +48,15 @@ export async function refreshState(): Promise<boolean> {
     if (e instanceof ApiError && e.status === 0) return false;
     throw e;
   }
+}
+
+/** Wipe this device's copy of the venue (keeps its display preferences) and start over. */
+async function forgetLocalData() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('p0.') && !/^p0\.(theme|scale|wallScale|fold\.)/.test(k)) localStorage.removeItem(k);
+  } catch { /* storage blocked */ }
+  await db.delete();
+  location.reload();
 }
 
 export async function boot() {

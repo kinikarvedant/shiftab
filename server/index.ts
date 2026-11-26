@@ -1,7 +1,7 @@
 // Shiftab server: API + static PWA. Run: node server/index.ts (Node >= 22.18).
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { brotliCompressSync, constants as zlibConst, gzipSync } from 'node:zlib';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
@@ -33,8 +33,23 @@ export function buildApp(opts: { dataDir: string; production: boolean; setupCode
   }
   initSecret(secret);
 
+  // Demo reset: give RESET_DATABASE a NEW value and the next start begins with an empty database (once per value).
+  // Backups in DATA_DIR/backups are kept, so a reset can be undone by restoring the latest one.
+  const reset = process.env.RESET_DATABASE;
+  if (reset) {
+    const mark = join(opts.dataDir, `.reset-${createHash('sha256').update(reset).digest('hex').slice(0, 16)}`);
+    if (!existsSync(mark)) {
+      for (const f of ['p0rtal.db', 'p0rtal.db-wal', 'p0rtal.db-shm', '.setup-code']) rmSync(join(opts.dataDir, f), { force: true });
+      writeFileSync(mark, new Date().toISOString());
+      console.warn('RESET_DATABASE: started with an empty database (backups kept). A new setup code follows.');
+    }
+  }
   const db = openDb(join(opts.dataDir, 'p0rtal.db')); // file keeps the first project name so existing installs open as-is
-  const setupCode = (opts.setupCode ?? process.env.SETUP_CODE ?? randomBytes(5).toString('hex')).toUpperCase();
+  // The first-run setup code survives restarts and redeploys (saved beside the database) until a reset.
+  const codeFile = join(opts.dataDir, '.setup-code');
+  let saved = existsSync(codeFile) ? readFileSync(codeFile, 'utf8').trim() : '';
+  if (!saved && !opts.setupCode && !process.env.SETUP_CODE) { saved = randomBytes(5).toString('hex'); writeFileSync(codeFile, saved, { mode: 0o600 }); }
+  const setupCode = (opts.setupCode ?? process.env.SETUP_CODE ?? saved).toUpperCase();
   const config: Config = { production: opts.production, dataDir: opts.dataDir, setupCode };
   const ctx: Ctx = { db, config, broadcast: () => {} };
 

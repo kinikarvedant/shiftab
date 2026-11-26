@@ -147,6 +147,7 @@ export function authRoutes(app: FastifyInstance, ctx: Ctx) {
   const credLimit = limiter(10, 15 * 60_000);
   const limitIp = (req: FastifyRequest) => { if (!credLimit(req.ip)) fail(429, 'Too many attempts. Try again in a few minutes.'); };
 
+  const instance = (db.raw.prepare("SELECT value FROM meta WHERE key = 'instance'").get() as { value: string }).value;
   app.get('/api/state', async (req) => {
     const { session, device } = getCaller(ctx, req);
     const ug = session ? userAndGroup(db, session.userId) : null;
@@ -155,6 +156,7 @@ export function authRoutes(app: FastifyInstance, ctx: Ctx) {
       device,
       user: ug?.user.active ? { id: ug.user.id, name: ug.user.name, groupId: ug.user.groupId, email: ug.user.email } : null,
       totp: session?.totp ?? false,
+      instance, // changes only when the database is replaced by a fresh one
       now: Date.now(),
     };
   });

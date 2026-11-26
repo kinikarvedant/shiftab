@@ -327,3 +327,9 @@ test('dish photos: only menu editors can set them, and photos must belong to a p
   r = await push(deviceOnly(), mutation('photos', randomUUID(), photo, ownerId, ownerKey));
   assert.match(r.body.results[0].error, /Unknown employee or dish/);
 });
+
+test('the server reports a stable instance id, so devices notice when the database is reset', async () => {
+  const a = (await call('GET', '/api/state', {})).body.instance, b = (await call('GET', '/api/state', {})).body.instance;
+  assert.match(a, /^[0-9a-f-]{36}$/);
+  assert.equal(a, b);
+});

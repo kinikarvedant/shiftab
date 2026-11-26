@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 // SQLite document store + server-only tables. Synchronous (node:sqlite): never await inside tx().
 import { DatabaseSync } from 'node:sqlite';
 import type { CollectionName } from '../shared/schema.ts';
@@ -8,6 +9,8 @@ CREATE TABLE IF NOT EXISTS docs (
   updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (collection, id));
 CREATE INDEX IF NOT EXISTS docs_seq ON docs(seq);
+-- 'instance' = a random id for this database: devices compare it to spot a reset (a fresh database) and start clean
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS docs_order ON docs(collection, json_extract(data, '$.orderId'));
 -- report queries (server/finance.ts) pick by these fields: index them so a year's report stays quick
 CREATE INDEX IF NOT EXISTS docs_closed ON docs(collection, json_extract(data, '$.closedAt'));
@@ -46,6 +49,7 @@ export function openDb(file: string) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;');
   db.exec(SCHEMA);
+  db.prepare("INSERT OR IGNORE INTO meta (key, value) VALUES ('instance', ?)").run(randomUUID());
   // additive migrations for databases created by older versions
   for (const sql of [
     'ALTER TABLE credentials ADD COLUMN pwd_key_enc TEXT',

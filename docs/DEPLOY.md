@@ -148,6 +148,21 @@ Keep it reliable:
 - Restore: stop the service, copy a snapshot to `DATA_DIR/p0rtal.db` (the file keeps the project's first name),
   delete the `-wal`/`-shm` files next to it, and start the service. Devices re-sync automatically.
 
+## Resetting to a fresh database (demos)
+
+To show the first-run setup again (for a demo, or to start over), give the `RESET_DATABASE` variable a
+**new** value. On Railway:
+
+```sh
+railway variable set --service shiftab RESET_DATABASE=demo-1   # next time: demo-2, demo-3, ...
+```
+
+The service restarts with an empty database and prints a new setup code in its logs. Each value resets
+only once, so later restarts keep the new data. Backups in `DATA_DIR/backups/` are kept: restore the latest
+one (see Backups) to undo a reset. Devices that were set up before notice the reset and clear their own copy;
+sign in with a password and enrol them again. For regular demos, a second service (for example
+`shiftab-demo`) keeps the real venue out of harm's way.
+
 ## 8. Updating
 
 ```sh
