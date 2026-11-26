@@ -142,8 +142,8 @@ button, .nav a, img.avatar { -webkit-touch-callout: none; -webkit-user-select: n
 .app { display: grid; min-height: 100dvh; grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--bottombar-h); grid-template-columns: minmax(0, 1fr);
   grid-template-areas: 'top' 'main' 'nav'; }
 .topbar { grid-area: top; position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-3);
-  padding: 0 max(var(--space-4), env(safe-area-inset-left)); background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  padding: 0 max(var(--space-4), env(safe-area-inset-left)); background: var(--bg); /* solid: a live blur costs every scroll frame on cheap tablets */
+  border-bottom: 1px solid var(--border); }
 .brand { display: flex; align-items: center; gap: var(--space-2); font-family: var(--font-heading), var(--font); font-weight: var(--heading-weight); letter-spacing: var(--heading-tracking); font-size: var(--fs-md); min-width: 0; }
 .brand-logo { height: 2rem; width: auto; max-width: 7rem; object-fit: contain; border-radius: var(--radius-xs); }
 .brand .brand-mark { width: 1.75rem; height: 1.75rem; border-radius: var(--radius-sm); }
@@ -186,6 +186,19 @@ button, .nav a, img.avatar { -webkit-touch-callout: none; -webkit-user-select: n
   .app.nav-folded .nav .lock-badge { position: absolute; margin: 0; }
 }
 .app.wall .nav .nav-fold { display: none; }
+
+/* ---------- setup tour: a ring around the place to look and a floating tip beside it ---------- */
+.tour-ring { position: fixed; z-index: 90; pointer-events: none; border-radius: var(--radius-md);
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 10px color-mix(in srgb, var(--accent) 22%, transparent);
+  transition: top var(--dur-slow) var(--ease-out), left var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out), height var(--dur-slow) var(--ease-out); }
+.tour-tip { position: fixed; z-index: 95; width: min(22rem, calc(100vw - 1.5rem)); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-3);
+  animation: sheet-in var(--dur-slow) var(--ease-out); transition: top var(--dur-slow) var(--ease-out), left var(--dur-slow) var(--ease-out); }
+.tour-tip h2 { font-size: var(--fs-lg); }
+.tour-tip .row.end { margin-top: var(--space-2); }
+.tour-step { font-size: var(--fs-xs); font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+.tour-offer { right: max(var(--space-4), env(safe-area-inset-right)); bottom: calc(var(--bottombar-h) + var(--space-4)); }
+@media (min-width: 52.5em) { .tour-offer { bottom: var(--space-5); } }
 
 /* ---------- venue watermark: faint, behind everything, never in the way ---------- */
 .watermark { position: fixed; z-index: -1; right: clamp(1rem, 3vw, 3rem); bottom: calc(var(--bottombar-h) + clamp(1rem, 3vw, 3rem));
@@ -315,7 +328,7 @@ dialog.sheet { border: 0; padding: 0; color: var(--text); background: var(--surf
   box-shadow: var(--shadow-3); width: min(36rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: hidden; }
 dialog.sheet.wide { width: min(56rem, calc(100vw - 2rem)); }
 dialog.sheet[open] { display: flex; flex-direction: column; animation: sheet-in var(--dur-slow) var(--ease-out); }
-dialog.sheet::backdrop { background: rgb(5 7 10 / .6); backdrop-filter: blur(3px); animation: fade-in var(--dur-slow) var(--ease-out); }
+dialog.sheet::backdrop { background: rgb(5 7 10 / .66); animation: fade-in var(--dur-slow) var(--ease-out); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
 .sheet-body { padding: var(--space-5); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--space-4); }
 .sheet-foot { display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); flex-wrap: wrap; background: var(--surface); }
@@ -406,7 +419,7 @@ dialog.sheet::backdrop { background: rgb(5 7 10 / .6); backdrop-filter: blur(3px
     --text-muted: #333 !important; --border: #ccc !important; --border-strong: #888 !important; --accent: #1f2937 !important;
     --success: #116B34 !important; --warning: #9A4A05 !important; --danger: #B42228 !important; --info: #03649A !important; }
   body { background: #fff; }
-  .topbar, .nav, .toasts, .watermark, .no-print { display: none !important; }
+  .topbar, .nav, .toasts, .watermark, .tour-tip, .tour-ring, .no-print { display: none !important; }
   .app { display: block; }
   .page { padding: 0; max-width: none; }
   .card { box-shadow: none; break-inside: avoid; }

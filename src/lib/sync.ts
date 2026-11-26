@@ -108,13 +108,15 @@ async function pull() {
       'GET', `/api/sync/pull?since=${cursor}&limit=500`,
     );
     await db.transaction('rw', [db.outbox, db.meta, ...COLLECTION_NAMES.map((c) => db.table(c))], async () => {
+      const pending = new Set((await db.outbox.toArray()).map((e) => `${e.collection}/${e.id}`)); // our newer local changes win until pushed
+      const puts = new Map<CollectionName, unknown[]>(), dels = new Map<CollectionName, string[]>();
       for (const d of res.docs) {
-        if (!COLLECTIONS[d.c]) continue;
-        const pending = await db.outbox.where('[collection+id]').equals([d.c, d.id]).count();
-        if (pending) continue; // our newer local change wins until it is pushed
-        if (d.deleted) await db.table(d.c).delete(d.id);
-        else await db.table(d.c).put(d.data);
+        if (!COLLECTIONS[d.c] || pending.has(`${d.c}/${d.id}`)) continue;
+        if (d.deleted) dels.set(d.c, [...(dels.get(d.c) ?? []), d.id]);
+        else puts.set(d.c, [...(puts.get(d.c) ?? []), d.data]);
       }
+      for (const [c, ids] of dels) await db.table(c).bulkDelete(ids);
+      for (const [c, docs] of puts) await db.table(c).bulkPut(docs);
       await setMeta('cursor', res.cursor);
     });
     cursor = res.cursor;

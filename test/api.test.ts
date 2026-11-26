@@ -3,6 +3,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, createHmac, pbkdf2Sync, randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp } from '../server/index.ts';
@@ -164,6 +165,28 @@ test('time clock: self punches must be at the current time', async () => {
   assert.match(r.body.results[0].error, /already clocked in/);
 });
 
+test('breaks: staff start and end their own; the server times them, so nobody can shorten one', async () => {
+  docs.clear(); await pull(owner);
+  const open = find('shifts', (s) => s.userId === staffId && s.clockOut == null);
+  const base = { userId: staffId, clockIn: open.clockIn, clockOut: null, note: open.note, breakMin: 0 };
+  const t0 = Date.now(), MIN = 60_000;
+  let r = await push(deviceOnly(), mutation('shifts', open.id, { ...base, breakStart: t0 }, staffId, staffKey, t0));
+  assert.equal(r.body.results[0].ok, true, 'start a break');
+  r = await push(deviceOnly(), mutation('shifts', open.id, { ...base, breakStart: null, breakMin: 0 }, staffId, staffKey, t0 + 3 * MIN));
+  assert.equal(r.body.results[0].ok, true, 'end it three minutes later, claiming no break at all');
+  docs.clear(); await pull(owner);
+  assert.equal(docs.get(`shifts/${open.id}`).breakMin, 3, 'the server counts the real break');
+  r = await push(deviceOnly(), mutation('shifts', open.id, { ...base, breakStart: null, breakMin: 0 }, staffId, staffKey));
+  assert.match(r.body.results[0].error, /only clock yourself out/, 'staff cannot edit break minutes directly');
+  r = await push(deviceOnly(), mutation('shifts', open.id, { ...base, breakMin: 3, breakStart: t0 + 3 * MIN }, staffId, staffKey, t0 + 3 * MIN));
+  assert.equal(r.body.results[0].ok, true, 'a second break');
+  r = await push(deviceOnly(), mutation('shifts', open.id, { ...base, breakMin: 3, breakStart: t0 + 3 * MIN, clockOut: t0 + 4 * MIN }, staffId, staffKey, t0 + 4 * MIN));
+  assert.equal(r.body.results[0].ok, true, 'clock out mid-break');
+  docs.clear(); await pull(owner);
+  const closed = docs.get(`shifts/${open.id}`);
+  assert.deepEqual([closed.breakMin, closed.breakStart], [4, null], 'the break ends with the shift');
+});
+
 test('finance needs a password session; pay rates round-trip encrypted', async () => {
   assert.equal((await call('GET', '/api/finance/rates', deviceOnly())).status, 401);
   const day = new Date().toISOString().slice(0, 10);
@@ -173,6 +196,23 @@ test('finance needs a password session; pay rates round-trip encrypted', async (
   const ds = await call('GET', `/api/finance/dataset?from=${day}&to=${day}`, owner);
   assert.equal(ds.status, 200);
   assert.ok(ds.body.orders.some((o: any) => o.status === 'paid'));
+});
+
+test('other costs: finance managers add them (encrypted at rest); they reach the report data', async () => {
+  const day = new Date().toISOString().slice(0, 10);
+  const cost = { day, spreadDays: 30, category: 'Equipment', description: 'Combi oven', amount: 300_000 };
+  assert.equal((await call('POST', '/api/finance/expenses', deviceOnly(), cost)).status, 401, 'needs a password session');
+  assert.equal((await call('POST', '/api/finance/expenses', owner, { ...cost, spreadDays: 12 })).status, 400, 'only the offered spreads');
+  const r = await call('POST', '/api/finance/expenses', owner, cost);
+  assert.equal(r.status, 200);
+  const peek = new DatabaseSync(join(dir, 'p0rtal.db'), { readOnly: true });
+  const raw = peek.prepare('SELECT data_enc FROM expenses WHERE id = ?').get(r.body.id) as any;
+  peek.close();
+  assert.ok(raw && !String(raw.data_enc).includes('Combi'), 'stored encrypted');
+  const ds = (await call('GET', `/api/finance/dataset?from=${day}&to=${day}`, owner)).body;
+  assert.deepEqual(ds.expenses.map((e: any) => [e.description, e.amount, e.spreadDays]), [['Combi oven', 300_000, 30]]);
+  assert.equal((await call('GET', `/api/finance/dataset?from=2025-01-01&to=2026-01-02`, owner)).status, 400, 'a year at most');
+  assert.equal((await call('DELETE', `/api/finance/expenses/${r.body.id}`, owner)).status, 200);
 });
 
 test('rank rules: a manager cannot touch the owner or grant owner-only permissions', async () => {

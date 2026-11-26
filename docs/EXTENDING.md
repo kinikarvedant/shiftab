@@ -58,7 +58,8 @@ collection. Sync, offline storage, real-time updates, permissions and audit come
 | `POST /api/groups` · `PATCH /api/groups/:id` · `DELETE /api/groups/:id` | staff.manage | `{name, rank, permissions[], color}` |
 | `GET /api/finance/rates` | finance.view | `[{id, userId, rateCents, effectiveFrom}]` |
 | `POST /api/finance/rates` · `DELETE /api/finance/rates/:id` | finance.manage | `{userId, rateCents, effectiveFrom: 'YYYY-MM-DD'}` |
-| `GET /api/finance/dataset?from&to` | finance.view | `Dataset` for `buildReport` (≤ 62 days) |
+| `POST /api/finance/expenses` · `DELETE /api/finance/expenses/:id` | finance.manage | `{day, category, description, amount, spreadDays}` (encrypted at rest) |
+| `GET /api/finance/dataset?from&to` | finance.view | `Dataset` for `buildReport` (≤ 366 days, includes other costs) |
 | `GET /api/attendance?from&to` | any session (timeclock.manage = everyone, else self) | `{shifts}` (≤ 92 days) |
 | `GET /api/audit?before=<id>` | audit.view | 100 newest rows `{id, ts, actor, device, action, target, detail(JSON string)}` |
 | `GET /api/devices` · `DELETE /api/devices/:id` · `POST /api/devices/enrol` | devices.manage | `{name}` |

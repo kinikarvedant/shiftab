@@ -228,28 +228,47 @@ const RULES: Record<CollectionName, Rule> = {
     const clash = db.list('shifts').some((s) => s.id !== m.id && s.userId === userId
       && s.clockIn < (next.clockOut ?? Infinity) && (s.clockOut ?? Infinity) > next.clockIn);
     const late = Date.now() - m.at > 10 * MIN; // punched offline and synced later: still counted, but flagged
+    if (next.breakStart != null && (next.breakStart < next.clockIn || (next.clockOut != null && next.breakStart > next.clockOut))) return 'A break must fall inside the shift.';
+    const addBreak = (base: number, from: number, to: number) => Math.min(600, base + Math.max(0, Math.round((to - from) / MIN)));
+    const foldBreak = () => { // a shift that ends mid-break: the break ends with it
+      if (next.clockOut != null && next.breakStart != null) Object.assign(next, { breakMin: addBreak(next.breakMin, next.breakStart, next.clockOut), breakStart: null });
+    };
 
     if (!prev) {
-      if (self && next.clockOut == null && next.breakMin === 0 && now(next.clockIn)) {
+      if (self && next.clockOut == null && next.breakMin === 0 && next.breakStart == null && now(next.clockIn)) {
         if (clash) return 'You are already clocked in, or this overlaps another shift.';
         next.review = late;
         return null;
       }
       if (!manage) return 'You can only clock yourself in, at the current time.';
       if (clash) return 'That overlaps another shift for this person.';
+      foldBreak();
       next.review = false;
       x.audit('shift.added', { user: t.user.name, ...next });
       return;
     }
     if (next.userId !== prev.userId) return 'A shift cannot move to another employee.';
-    if (self && prev.clockOut == null && next.clockOut != null && now(next.clockOut)
-      && next.clockIn === prev.clockIn && next.breakMin === prev.breakMin && next.note === prev.note) {
-      if (clash) return 'This overlaps another shift — ask a manager to correct it.';
-      next.review = !!prev.review || late || next.clockOut - next.clockIn > 16 * HOUR;
-      return null;
+    // Self-service on your own open shift. Break minutes always come from the signed times, never from the
+    // device, so nobody can shorten their own break (breaks are unpaid).
+    if (self && prev.clockOut == null && next.clockIn === prev.clockIn && next.note === prev.note) {
+      if (next.clockOut == null && prev.breakStart == null && next.breakStart != null && now(next.breakStart)) { // start a break
+        Object.assign(next, { breakStart: m.at, breakMin: prev.breakMin, review: !!prev.review || late });
+        return null;
+      }
+      if (next.clockOut == null && prev.breakStart != null && next.breakStart == null) { // end it
+        Object.assign(next, { breakMin: addBreak(prev.breakMin, prev.breakStart, m.at), review: !!prev.review || late });
+        return null;
+      }
+      if (next.clockOut != null && now(next.clockOut)) { // clock out (a break in progress ends with it)
+        if (clash) return 'This overlaps another shift — ask a manager to correct it.';
+        Object.assign(next, { breakMin: prev.breakStart != null ? addBreak(prev.breakMin, prev.breakStart, next.clockOut) : prev.breakMin, breakStart: null });
+        next.review = !!prev.review || late || next.clockOut - next.clockIn > 16 * HOUR;
+        return null;
+      }
     }
     if (!manage) return 'You can only clock yourself out, at the current time.';
     if (clash) return 'That overlaps another shift for this person.';
+    foldBreak();
     next.review = false; // a manager has looked at it
     x.audit('shift.edited', { user: t.user.name, from: prev, to: next });
   },

@@ -9,6 +9,10 @@ CREATE TABLE IF NOT EXISTS docs (
   PRIMARY KEY (collection, id));
 CREATE INDEX IF NOT EXISTS docs_seq ON docs(seq);
 CREATE INDEX IF NOT EXISTS docs_order ON docs(collection, json_extract(data, '$.orderId'));
+-- report queries (server/finance.ts) pick by these fields: index them so a year's report stays quick
+CREATE INDEX IF NOT EXISTS docs_closed ON docs(collection, json_extract(data, '$.closedAt'));
+CREATE INDEX IF NOT EXISTS docs_at ON docs(collection, json_extract(data, '$.at'));
+CREATE INDEX IF NOT EXISTS docs_clockin ON docs(collection, json_extract(data, '$.clockIn'));
 CREATE TABLE IF NOT EXISTS credentials (
   user_id TEXT PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT,
   totp_enc TEXT, totp_pending_enc TEXT, totp_last INTEGER NOT NULL DEFAULT 0,
@@ -27,6 +31,11 @@ CREATE TABLE IF NOT EXISTS audit (
 CREATE TABLE IF NOT EXISTS pay_rates (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, effective_from TEXT NOT NULL, data_enc TEXT NOT NULL,
   created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+-- other costs (equipment, stock, rent…): dates in the clear for range queries, everything else encrypted
+CREATE TABLE IF NOT EXISTS expenses (
+  id TEXT PRIMARY KEY, day TEXT NOT NULL, end_day TEXT NOT NULL, data_enc TEXT NOT NULL,
+  created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS expenses_days ON expenses(day, end_day);
 `;
 
 export interface StoredDoc { data: Record<string, any>; seq: number; deleted: boolean; updatedAt: number; updatedBy: string }

@@ -1,11 +1,19 @@
 // Pure timesheet maths (no DOM / Dexie), checked by `node --test src/modules/timeclock/lib.test.ts`.
 import { addDays, businessDay, zonedTime } from '../../../shared/time.ts';
 
-export interface ShiftLike { userId: string; clockIn: number; clockOut: number | null; breakMin: number }
+export interface ShiftLike { userId: string; clockIn: number; clockOut: number | null; breakMin: number; breakStart?: number | null }
 const HOUR = 3_600_000;
 
-/** Paid minutes: open shifts count up to `now`, minus the unpaid break. */
-export const shiftMinutes = (s: ShiftLike, now: number) => Math.max(0, Math.round(((s.clockOut ?? now) - s.clockIn) / 60_000) - s.breakMin);
+/** Paid minutes: open shifts count up to `now`, minus unpaid breaks (including one still going). */
+export function shiftMinutes(s: ShiftLike, now: number) {
+  const end = s.clockOut ?? now;
+  const onBreak = s.breakStart != null ? Math.round((end - s.breakStart) / 60_000) : 0;
+  return Math.max(0, Math.round((end - s.clockIn) / 60_000) - s.breakMin - onBreak);
+}
+
+/** The shift as it will be after a break ends (or the shift ends) at `at`: the break's minutes join breakMin. */
+export const endBreak = <T extends ShiftLike>(s: T, at: number): T =>
+  s.breakStart == null ? s : { ...s, breakStart: null, breakMin: Math.min(600, s.breakMin + Math.max(0, Math.round((at - s.breakStart) / 60_000))) };
 export const sumMinutes = (list: ShiftLike[], now: number) => list.reduce((a, s) => a + shiftMinutes(s, now), 0);
 
 /** 'stale' = open 12h+ (missed clock-out?), 'open' = on shift now, 'long' = closed but over 12h. */

@@ -10,7 +10,7 @@
   "scripts": {
     "dev:server": "node --env-file-if-exists=.env --watch --disable-warning=ExperimentalWarning server/index.ts",
     "dev:client": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/compress.ts",
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/index.ts",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
     "typecheck": "tsc --noEmit"

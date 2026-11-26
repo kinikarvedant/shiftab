@@ -38,7 +38,7 @@ export default function Kitchen(_: ModuleProps) {
   }, []);
 
   const tickets = useMemo(() => {
-    const none = { active: [], done: [], courses: [], sel: [] as string[], catOf: (_: OrderItemDoc): Doc<'categories'> | undefined => undefined,
+    const none = { active: [], finished: [], courses: [], sel: [] as string[], catOf: (_: OrderItemDoc): Doc<'categories'> | undefined => undefined,
       isMine: (_: OrderItemDoc) => true, mine: '' };
     if (!data) return none;
     const itemById = new Map(data.items.map((i) => [i.id, i]));
@@ -67,10 +67,11 @@ export default function Kitchen(_: ModuleProps) {
     }).filter((t) => t.my.length > 0);
     return {
       active: all.filter((t) => t.pending.length > 0).sort((a, b) => a.firstSent - b.firstSent),
-      done: all.filter((t) => t.pending.length === 0 && now - t.lastReady < KEEP_DONE).sort((a, b) => b.lastReady - a.lastReady).slice(0, 8),
+      finished: all.filter((t) => t.pending.length === 0).sort((a, b) => b.lastReady - a.lastReady),
       courses, sel, catOf, isMine, mine: myStations.map((s) => s.name).join(' + '),
     };
-  }, [data, now, station, whole, me]);
+  }, [data, station, whole, me]); // not `now`: regrouping every ticket each second is wasted work on a TV stick
+  const done = tickets.finished.filter((t) => now - t.lastReady < KEEP_DONE).slice(0, 8);
   const toggle = (id: string) => setStation((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const stationName = tickets.mine || tickets.courses.filter((x) => tickets.sel.includes(x.c.id)).map((x) => x.c.name).join(' + ');
 
@@ -137,10 +138,10 @@ export default function Kitchen(_: ModuleProps) {
           })}
         </div>
       )}
-      {tickets.done.length > 0 && (
+      {done.length > 0 && (
         <section className="kds-done" aria-label="Recently completed">
           <span className="muted">Done:</span>
-          {tickets.done.map((t) => (
+          {done.map((t) => (
             <button key={t.o.id} className="chip" onClick={() => t.my.forEach((l) => void set(l, 'sent'))} aria-label={`Recall ${t.where ?? t.o.number}`}>
               <RotateCcw aria-hidden="true" /> {t.where ?? t.o.number}
             </button>

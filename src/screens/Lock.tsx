@@ -1,7 +1,7 @@
 // Shared terminal sign-in: tap your face, enter your PIN, clock in/out or open the till.
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, LogIn, LogOut, KeyRound, ArrowRight, UserRoundX } from 'lucide-react';
+import { Camera, Coffee, LogIn, LogOut, KeyRound, ArrowRight, Play, UserRoundX } from 'lucide-react';
 import { table } from '../lib/db.ts';
 import { checkPin, pinLockedFor, startPinSession } from '../lib/session.ts';
 import { write, type Signer } from '../lib/sync.ts';
@@ -10,6 +10,7 @@ import { photoFromFile } from '../lib/photo.ts';
 import { errorText } from '../lib/api.ts';
 import { Avatar, BrandMark, Dialog, Empty, PinPad, toast } from '../ui/index.tsx';
 import { SyncPill } from '../ui/sync-pill.tsx';
+import { endBreak } from '../modules/timeclock/lib.ts';
 import { can, type Permission } from '../../shared/permissions.ts';
 import type { UserDoc } from '../../shared/schema.ts';
 import './screens.css';
@@ -53,11 +54,27 @@ export function Lock({ onPassword }: { onPassword: () => void }) {
     if (!who) return;
     try {
       if (shift) {
-        await write('shifts', { ...shift, clockOut: Date.now() }, signer());
+        const t = Date.now();
+        await write('shifts', { ...endBreak(shift, t), clockOut: t }, signer());
         toast(`${who.name} clocked out · ${elapsedText(Date.now() - shift.clockIn)} on shift`, 'success');
       } else {
         await write('shifts', { id: uuid(), userId: who.id, clockIn: Date.now(), clockOut: null, breakMin: 0, note: '' }, signer());
         toast(`${who.name} clocked in at ${fmt.time(Date.now())}`, 'success');
+      }
+      close();
+    } catch (e) { toast(errorText(e), 'error'); }
+  }
+
+  async function toggleBreak() {
+    if (!who || !shift) return;
+    try {
+      const t = Date.now();
+      if (shift.breakStart) {
+        await write('shifts', endBreak(shift, t), signer());
+        toast(`${who.name} is back from a ${elapsedText(t - shift.breakStart)} break`, 'success');
+      } else {
+        await write('shifts', { ...shift, breakStart: t }, signer());
+        toast(`${who.name} is on a break. Breaks aren't paid time.`, 'success');
       }
       close();
     } catch (e) { toast(errorText(e), 'error'); }
@@ -93,7 +110,9 @@ export function Lock({ onPassword }: { onPassword: () => void }) {
                 <button key={u.id} className={`face${s ? ' on-shift' : ''}`} onClick={() => setWho(u)} aria-label={`${u.name}${s ? ', on shift' : ''}`}>
                   <Avatar user={u} size="lg" />
                   <span className="name ellipsis">{u.name}</span>
-                  {s ? <span className="pill success">On shift · {elapsedText(now - s.clockIn)}</span> : <span className="pill">Off</span>}
+                  {s ? (s.breakStart
+                    ? <span className="pill warning">On break · {elapsedText(now - s.breakStart)}</span>
+                    : <span className="pill success">On shift · {elapsedText(now - s.clockIn)}</span>) : <span className="pill">Off</span>}
                 </button>
               );
             })}
@@ -110,8 +129,16 @@ export function Lock({ onPassword }: { onPassword: () => void }) {
         {who && !key && <PinPad busy={busy} error={error} length={who.pinLen} onSubmit={enter} />}
         {who && key && (
           <div className="stack lg">
-            <p className="muted">{shift ? `On shift since ${fmt.time(shift.clockIn)} (${elapsedText(Date.now() - shift.clockIn)}).` : 'You are not clocked in.'}</p>
+            <p className="muted">
+              {!shift ? 'You are not clocked in.'
+                : shift.breakStart ? `On a break since ${fmt.time(shift.breakStart)} (${elapsedText(Date.now() - shift.breakStart)}).`
+                : `On shift since ${fmt.time(shift.clockIn)} (${elapsedText(Date.now() - shift.clockIn)}).`}
+              {shift && shift.breakMin > 0 && ` Breaks so far: ${shift.breakMin} min.`}
+            </p>
             <div className="action-grid">
+              {allowed('timeclock.self') && shift && (shift.breakStart
+                ? <button className="btn lg success" onClick={toggleBreak}><Play /> End break</button>
+                : <button className="btn lg outline" onClick={toggleBreak}><Coffee /> Start break</button>)}
               {allowed('timeclock.self') && (shift
                 ? <button className="btn lg danger" onClick={punch}><LogOut /> Clock out</button>
                 : <button className="btn lg success" onClick={punch}><LogIn /> Clock in</button>)}

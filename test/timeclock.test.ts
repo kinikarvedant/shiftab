@@ -22,3 +22,8 @@ test('timesheet maths', () => {
 
   assert.equal(toCsv([['=SUM(A1)', 'say "hi"', 7.5]]), `"'=SUM(A1)","say ""hi""","7.5"`);
 });
+
+test('a break that is still going is not paid time', () => {
+  const t0 = Date.UTC(2026, 10, 24, 9);
+  assert.equal(shiftMinutes({ userId: 'a', clockIn: t0, clockOut: null, breakMin: 10, breakStart: t0 + 60 * 60_000 }, t0 + 90 * 60_000), 90 - 10 - 30);
+});

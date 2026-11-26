@@ -1,4 +1,4 @@
-// Finance: pay rates (encrypted at rest), report datasets, audit log, backups.
+// Finance: pay rates and other costs (both encrypted at rest), report datasets, audit log, backups.
 // Only password sessions with finance permissions (and TOTP when required) get here.
 import { randomUUID } from 'node:crypto';
 import { createReadStream, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
@@ -9,10 +9,11 @@ import { fail, parse, requireSession, userAndGroup, type Ctx } from './auth.ts';
 import { open, seal } from './security.ts';
 import { outranks, type Permission } from '../shared/permissions.ts';
 import { addDays, weekStart } from '../shared/time.ts';
-import type { Dataset } from '../shared/report.ts';
+import { COST_CATEGORIES, SPREADS, type Dataset, type Expense } from '../shared/report.ts';
 
 const DateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((d) => !Number.isNaN(Date.parse(`${d}T00:00:00Z`)), 'Invalid date');
 const DAY = 86_400_000;
+const MAX_RANGE_DAYS = 366;
 
 export function financeRoutes(app: FastifyInstance, ctx: Ctx) {
   const { db } = ctx;
@@ -58,12 +59,45 @@ export function financeRoutes(app: FastifyInstance, ctx: Ctx) {
     return { ok: true };
   });
 
+  // ---------- other costs (equipment, materials, rent…) ----------
+  const expenses = (from: string, to: string): Expense[] =>
+    (db.raw.prepare('SELECT id, day, data_enc FROM expenses WHERE day <= ? AND end_day >= ? ORDER BY day').all(to, from) as any[])
+      .map((r) => ({ id: r.id, day: r.day, ...JSON.parse(open(r.data_enc).toString()) }));
+
+  app.post('/api/finance/expenses', async (req) => {
+    const me = requireFinance(req, 'finance.manage');
+    const body = parse(z.strictObject({
+      day: DateStr,
+      spreadDays: z.int().refine((n) => SPREADS.some((s) => s.days === n), 'Pick how long to spread it over.'),
+      category: z.enum(COST_CATEGORIES),
+      description: z.string().trim().max(120),
+      amount: z.int().min(1).max(10_000_000_00),
+    }), req.body);
+    const id = randomUUID();
+    const { day, ...rest } = body;
+    db.tx(() => {
+      db.raw.prepare('INSERT INTO expenses (id, day, end_day, data_enc, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(id, day, addDays(day, body.spreadDays - 1), seal(JSON.stringify(rest)), me.user.id, Date.now());
+      db.audit(me.user.id, me.device?.id ?? null, 'expense.added', id, body);
+    });
+    return { id };
+  });
+
+  app.delete('/api/finance/expenses/:id', async (req) => {
+    const me = requireFinance(req, 'finance.manage');
+    const eid = parse(z.uuid(), (req.params as any).id);
+    const row = db.raw.prepare('SELECT day, data_enc FROM expenses WHERE id = ?').get(eid) as any ?? fail(404, 'Cost not found.');
+    db.raw.prepare('DELETE FROM expenses WHERE id = ?').run(eid);
+    db.audit(me.user.id, me.device?.id ?? null, 'expense.deleted', eid, { day: row.day, ...JSON.parse(open(row.data_enc).toString()) });
+    return { ok: true };
+  });
+
   /** Raw data for shared/report.ts buildReport(). Shifts cover whole weeks so overtime is right. */
   app.get('/api/finance/dataset', async (req): Promise<Dataset> => {
     const me = requireFinance(req, 'finance.view');
     const q = req.query as Record<string, string>;
     const from = parse(DateStr, q.from), to = parse(DateStr, q.to);
-    if (to < from || Date.parse(to) - Date.parse(from) > 62 * DAY) fail(400, 'Pick a range of at most 62 days.');
+    if (to < from || Date.parse(to) - Date.parse(from) >= MAX_RANGE_DAYS * DAY) fail(400, `Pick a range of at most ${MAX_RANGE_DAYS} days.`);
     const s = settings();
     // generous UTC windows; buildReport assigns exact business days
     const lo = Date.parse(`${from}T00:00:00Z`) - 2 * DAY, hi = Date.parse(`${to}T00:00:00Z`) + 3 * DAY;
@@ -78,7 +112,8 @@ export function financeRoutes(app: FastifyInstance, ctx: Ctx) {
       rates: rates(),
       orders: pick('orders', 'closedAt', lo, hi).map((o) => ({ id: o.id, status: o.status, closedAt: o.closedAt, totals: o.totals })),
       payments: pick('payments', 'at', lo - 7 * DAY, hi).map((p) => ({ id: p.id, orderId: p.orderId, method: p.method, amount: p.amount, tip: p.tip, at: p.at })),
-      shifts: pick('shifts', 'clockIn', shiftLo, hi).map((x) => ({ id: x.id, userId: x.userId, clockIn: x.clockIn, clockOut: x.clockOut, breakMin: x.breakMin })),
+      shifts: pick('shifts', 'clockIn', shiftLo, hi).map((x) => ({ id: x.id, userId: x.userId, clockIn: x.clockIn, clockOut: x.clockOut, breakMin: x.breakMin, breakStart: x.breakStart ?? null })),
+      expenses: expenses(from, to),
       generatedAt: Date.now(),
     };
   });

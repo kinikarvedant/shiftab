@@ -9,8 +9,9 @@ and bars — built as a template other businesses can extend.
   reservations, split payments with tips and cash change, on-the-spot manager approvals.
 - **Time clock:** staff clock in/out from the sign-in screen, profile photos, attendance
   history, manager timesheet corrections (audited).
-- **Back office:** every day's revenue vs wages, labour %, profit after labour; a weekly
-  report with per-employee hours, overtime and pay due — CSV and print/PDF.
+- **Back office:** revenue vs wages and other costs (equipment, stock, rent… spread over the
+  period they serve) for any date range up to a year, labour %, profit; per-employee hours,
+  breaks, overtime and pay due — CSV and print/PDF.
 - **Works with no network.** Everything on the floor keeps working offline and syncs
   ("cloud save") when the server is reachable. Devices update each other in real time.
 - **Your brand, not a template look:** palette presets or your own colour (picked straight

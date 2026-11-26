@@ -152,7 +152,8 @@ export const Shift = z.strictObject({
   userId: ref,
   clockIn: ts,
   clockOut: ts.nullable(),
-  breakMin: z.int().min(0).max(600),
+  breakMin: z.int().min(0).max(600),          // unpaid break minutes so far
+  breakStart: ts.nullable().default(null),     // on a break since then; its minutes join breakMin when it ends (server-timed)
   note: opt(200),
   review: z.boolean().default(false), // server-managed: punch synced late or shift unusually long — check it
 });

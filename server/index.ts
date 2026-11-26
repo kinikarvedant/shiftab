@@ -1,5 +1,6 @@
 // Shiftab server: API + static PWA. Run: node server/index.ts (Node >= 22.18).
 import { randomBytes } from 'node:crypto';
+import { brotliCompressSync, constants as zlibConst, gzipSync } from 'node:zlib';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +62,18 @@ export function buildApp(opts: { dataDir: string; production: boolean; setupCode
     if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
   });
 
+  // Compress JSON replies (sync pulls, report data): a first sync or a year's report shrinks ~5x on mobile data.
+  // Static files are pre-compressed at build time instead (scripts/compress.ts + preCompressed below).
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (typeof payload !== 'string' || payload.length < 1024 || reply.getHeader('content-encoding')) return payload;
+    if (!String(reply.getHeader('content-type') ?? '').includes('json')) return payload;
+    const accept = String(req.headers['accept-encoding'] ?? '');
+    const enc = /\bbr\b/.test(accept) ? 'br' : /\bgzip\b/.test(accept) ? 'gzip' : null;
+    if (!enc) return payload;
+    reply.header('Content-Encoding', enc).header('Vary', 'Accept-Encoding');
+    return enc === 'br' ? brotliCompressSync(payload, { params: { [zlibConst.BROTLI_PARAM_QUALITY]: 5 } }) : gzipSync(payload);
+  });
+
   app.setErrorHandler((err: any, req, reply) => {
     const status = err.statusCode ?? 500;
     if (status >= 500) req.log.error(err);
@@ -77,6 +90,7 @@ export function buildApp(opts: { dataDir: string; production: boolean; setupCode
     app.register(fastifyStatic, {
       root: dist,
       wildcard: true, // serve new build files without a restart
+      preCompressed: true, // .br / .gz written by scripts/compress.ts
       setHeaders: (res, path) => {
         res.header('Cache-Control', /[\\/]assets[\\/]/.test(path) ? 'public, max-age=31536000, immutable' : 'no-cache');
       },

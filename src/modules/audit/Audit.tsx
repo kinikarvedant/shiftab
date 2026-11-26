@@ -52,6 +52,8 @@ const ACTIONS: Record<string, [label: string, cat: Cat, tone?: Tone]> = {
   'group.deleted': ['Group deleted', 'staff', 'danger'],
   'payrate.set': ['Pay rate set', 'pay', 'warning'],
   'payrate.deleted': ['Pay rate removed', 'pay', 'warning'],
+  'expense.added': ['Cost added', 'pay', 'info'],
+  'expense.deleted': ['Cost removed', 'pay', 'warning'],
   'finance.viewed': ['Reports opened', 'pay', 'info'],
   'settings.changed': ['Settings changed', 'system', 'warning'],
   'device.enrolled': ['Device enrolled', 'system', 'info'],

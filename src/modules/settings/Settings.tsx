@@ -10,6 +10,7 @@ import { write } from '../../lib/sync.ts';
 import { useFmt } from '../../lib/format.ts';
 import { prefs, SCALES, setPref, WALL_SCALES, type Theme } from '../../lib/display.ts';
 import { FoldToggle, openWithPassword, toast, useFold } from '../../ui/index.tsx';
+import { startTour } from '../../ui/tour.tsx';
 import { DEFAULT_SETTINGS, Settings as SettingsSchema, type DataOf } from '../../../shared/schema.ts';
 import type { Permission } from '../../../shared/permissions.ts';
 import type { ModuleProps } from '../index.ts';
@@ -43,7 +44,7 @@ export default function Settings({ params: [tab] }: ModuleProps) {
         <nav className="seg settings-tabs" aria-label="Settings sections">
           <FoldToggle folded={folded} onToggle={() => fold(!folded)} what="sections" className="" label />
           {tabs.map((t) => (
-            <button key={t.id} type="button" aria-pressed={t === cur} title={t.label} onClick={() => { go(`settings/${t.id}`); fold(true); }}>
+            <button key={t.id} type="button" data-tour={t.id} aria-pressed={t === cur} title={t.label} onClick={() => { go(`settings/${t.id}`); fold(true); }}>
               <t.icon aria-hidden="true" /> <span className="tab-label">{t.label}</span>
             </button>
           ))}
@@ -175,6 +176,10 @@ function BusinessForm({ saved }: { saved: Partial<S> | undefined }) {
 
   return (
     <form className="stack lg" onSubmit={save} noValidate>
+      <div className="banner">
+        <span className="grow small">New here? The setup tour walks you through your brand, business details, menu, tables, team and devices.</span>
+        <button type="button" className="btn outline sm" onClick={startTour}>Start setup tour</button>
+      </div>
       <section className="card stack" aria-labelledby="b-venue">
         <h2 id="b-venue">Venue</h2>
         <div className="form-grid">

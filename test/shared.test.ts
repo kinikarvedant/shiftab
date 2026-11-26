@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { orderTotals, parseMoney, formatMoney } from '../shared/money.ts';
 import { businessDay, weekStart, zonedTime, addDays } from '../shared/time.ts';
-import { buildReport, type Dataset } from '../shared/report.ts';
+import { buildReport, groupRows, groupingFor, type Dataset } from '../shared/report.ts';
 import { can, canGrant, DEFAULT_GROUPS, outranks } from '../shared/permissions.ts';
 
 test('order totals: exclusive tax, service, discount caps, voids', () => {
@@ -137,4 +137,32 @@ test('permissions: sensitive needs password, rank and grant rules', () => {
   assert.equal(can(u(staff), manager, 'pos.use', 'password'), false); // group mismatch
   assert.ok(outranks(manager, staff) && !outranks(staff, manager) && !outranks(manager, manager));
   assert.ok(!canGrant(manager, ['settings.manage']) && canGrant(owner, ['settings.manage']));
+});
+
+test('report: other costs, spread evenly over their days, come off profit', () => {
+  const ds = dataset();
+  ds.expenses = [
+    { id: 'e1', day: '2026-11-23', spreadDays: 1, category: 'Ingredients & stock', description: 'Veg order', amount: 4_000 },
+    { id: 'e2', day: '2026-11-20', spreadDays: 7, category: 'Equipment', description: 'Blender', amount: 701 }, // 101,100,100,…
+  ];
+  const r = buildReport(ds, '2026-11-23', '2026-11-29');
+  const d23 = r.days.find((d) => d.date === '2026-11-23')!;
+  // e2 started on the 20th: its 4th day (k=3, 100) lands on the 23rd; days 24–26 get 100 each
+  assert.equal(d23.costs, 4_000 + 100);
+  assert.equal(d23.profit, d23.revenue - d23.labourCost - d23.costs);
+  assert.equal(r.totals.costs, 4_000 + 4 * 100);
+  assert.deepEqual(r.costs.map((c) => [c.id, c.inRange]), [['e2', 400], ['e1', 4_000]]);
+  const whole = buildReport(ds, '2026-11-20', '2026-11-26');
+  assert.equal(whole.totals.costs, 4_000 + 701, 'over the whole spread the cent split adds back up exactly');
+});
+
+test('report: long ranges group by week or month', () => {
+  assert.equal(groupingFor('2026-11-01', '2026-11-30'), 'day');
+  assert.equal(groupingFor('2026-09-01', '2026-11-30'), 'week');
+  assert.equal(groupingFor('2026-01-01', '2026-12-31'), 'month');
+  const r = buildReport(dataset(), '2026-11-16', '2026-11-29');
+  const weeks = groupRows(r.days, 'week', 1);
+  assert.deepEqual(weeks.map((w) => [w.date, w.until]), [['2026-11-16', '2026-11-22'], ['2026-11-23', '2026-11-29']]);
+  assert.equal(weeks[1]!.revenue, r.totals.revenue);
+  assert.equal(weeks.reduce((a, w) => a + w.profit, 0), r.totals.profit);
 });

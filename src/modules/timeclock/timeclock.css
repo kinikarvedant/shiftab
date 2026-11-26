@@ -36,3 +36,5 @@
   border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; opacity: .6; }
 .tc-add:hover, .tc-add:focus-visible { opacity: 1; border-color: var(--border-strong); }
 .tc-add svg { width: 1.25rem; height: 1.25rem; }
+.tc-status.break { border: 2px solid var(--warning); background: var(--warning-soft); }
+.tc-status.break .row svg { color: var(--warning); }

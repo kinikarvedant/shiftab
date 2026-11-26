@@ -13,6 +13,7 @@ import { AskHost, Avatar, BrandMark, FoldToggle, Toasts, Watermark, ask, openWit
 import { setBrand } from './lib/display.ts';
 import { ApproveHost } from './ui/approve.tsx';
 import { SyncPill } from './ui/sync-pill.tsx';
+import { Tour } from './ui/tour.tsx';
 import { Setup } from './screens/Setup.tsx';
 import { Lock } from './screens/Lock.tsx';
 import { Login } from './screens/Login.tsx';
@@ -65,6 +66,7 @@ function Shell() {
   return (
     <div className={`app${wall ? ' wall' : ''}${navFolded ? ' nav-folded' : ''}`}>
       <Watermark />
+      {level === 'password' && can('settings.manage') && !wall && <Tour venue={settings?.name} />}
       <header className="topbar">
         <div className="brand"><BrandMark /><span className="ellipsis">{settings?.name ?? 'Shiftab'}</span></div>
         <div className="spacer" />
@@ -79,7 +81,7 @@ function Shell() {
       </header>
       <nav className="nav" aria-label="Main">
           {nav.map((m) => (
-            <a key={m.id} href={`#/${m.id}`} onClick={() => foldNav(true)} aria-current={m.id === id || (id === 'order' && m.id === 'floor') ? 'page' : undefined}>
+            <a key={m.id} href={`#/${m.id}`} data-tour={`nav-${m.id}`} onClick={() => foldNav(true)} aria-current={m.id === id || (id === 'order' && m.id === 'floor') ? 'page' : undefined}>
               <m.icon aria-hidden="true" /><span>{m.label}</span>
             </a>
           ))}

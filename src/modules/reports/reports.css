@@ -1,7 +1,8 @@
 /* Reports. Layout reacts to the page width (container "rp"), not the viewport, so the sidebar doesn't matter. */
 .reports { container: rp / inline-size; }
-.rp-week { margin-bottom: var(--space-5); }
-.rp-week h2 { font-variant-numeric: tabular-nums; }
+.rp-range { margin-bottom: var(--space-5); }
+.rp-range h2 { font-variant-numeric: tabular-nums; }
+.rp-date .input { width: auto; min-height: var(--tap-min); }
 .rp-body { transition: opacity var(--dur-base) var(--ease); }
 .rp-body[aria-busy='true'] { opacity: .6; } /* refetch keeps the frame */
 .rp-cell { display: inline-flex; align-items: center; gap: var(--space-2); }
@@ -25,9 +26,10 @@
    Revenue = brand accent, labour cost = neutral grey: an emphasis pair (one hue + one grey), so it
    re-themes with any accent and stays apart under colour-blindness by lightness/chroma, not hue.
    Tokens only; identity is also carried by bar position, the legend, the tooltip and the ledger table. */
-.rp-chart { --c-rev: var(--accent); --c-lab: var(--border-strong); }
+.rp-chart { --c-rev: var(--accent); --c-lab: var(--border-strong); --c-cost: color-mix(in srgb, var(--border-strong) 45%, var(--surface)); }
 .rp-chart .rev { --c: var(--c-rev); }
 .rp-chart .lab { --c: var(--c-lab); }
+.rp-chart .cost { --c: var(--c-cost); }   /* lighter than wages: one spending column, two shades */
 .rp-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); }
 .rp-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
 .rp-legend i { width: .75rem; height: .75rem; border-radius: var(--radius-xs); background: var(--c); }
@@ -43,6 +45,9 @@
 .rp-bars { grid-row: 1; position: relative; display: flex; align-items: flex-end; justify-content: center; gap: .125rem; padding: 0 var(--space-1);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
 .rp-bars > i { flex: 0 1 1.5rem; background: var(--c); border-radius: var(--radius-xs) var(--radius-xs) 0 0; }
+/* spending column: wages at the bottom, other costs stacked on top */
+.rp-bars > .spend { flex: 0 1 1.5rem; display: flex; flex-direction: column-reverse; border-radius: var(--radius-xs) var(--radius-xs) 0 0; overflow: hidden; }
+.rp-bars > .spend > i { background: var(--c); flex: none; }
 .rp-bars.today { background: var(--state-hover); }
 .rp-bars:hover { background: var(--state-press); }
 .rp-x { grid-row: 2; display: flex; flex-direction: column; align-items: center; gap: .2rem; padding: var(--space-2) var(--space-1) 0;
@@ -61,9 +66,10 @@
 .rp-tip i { flex: none; width: .75rem; height: .1875rem; border-radius: var(--radius-xs); background: var(--c, transparent); }
 
 @media (forced-colors: active) {
-  .rp-chart .rev, .rp-chart .lab { forced-color-adjust: none; }
+  .rp-chart .rev, .rp-chart .lab, .rp-chart .cost { forced-color-adjust: none; }
   .rp-chart .rev { background: CanvasText; }
   .rp-chart .lab { background: GrayText; }
+  .rp-chart .cost { background: repeating-linear-gradient(45deg, GrayText 0 2px, Canvas 2px 5px); }
 }
 
 /* ---------- payroll + tender mix ---------- */

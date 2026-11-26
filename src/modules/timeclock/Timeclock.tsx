@@ -1,7 +1,7 @@
 // Time clock: your own punches and hours; with timeclock.manage, who's on now and the weekly timesheet.
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Download, Lock, LogIn, LogOut, Plus, RotateCcw, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Coffee, Download, Lock, LogIn, LogOut, Play, Plus, RotateCcw, Trash2, Users } from 'lucide-react';
 import { table } from '../../lib/db.ts';
 import { remove, write } from '../../lib/sync.ts';
 import { useApp, useCan } from '../../lib/session.ts';
@@ -12,7 +12,7 @@ import { outranks } from '../../../shared/permissions.ts';
 import { addDays, businessDay, dateRange, localDate, localTime, weekStart } from '../../../shared/time.ts';
 import type { ShiftDoc, UserDoc } from '../../../shared/schema.ts';
 import type { ModuleProps } from '../index.ts';
-import { byUserDay, flagOf, shiftMinutes, shiftTimes, sumMinutes, toCsv } from './lib.ts';
+import { byUserDay, endBreak, flagOf, shiftMinutes, shiftTimes, sumMinutes, toCsv } from './lib.ts';
 import './timeclock.css';
 
 type Fmt = ReturnType<typeof useFmt>;
@@ -74,7 +74,8 @@ function MyTime({ canPunch }: { canPunch: boolean }) {
     setBusy(true);
     try {
       if (open) {
-        await write('shifts', { ...open, clockOut: Date.now() });
+        const t = Date.now();
+        await write('shifts', { ...endBreak(open, t), clockOut: t });
         toast(`Clocked out · ${elapsedText(Date.now() - open.clockIn)} on shift`, 'success');
       } else {
         await write('shifts', { id: uuid(), userId: me.id, clockIn: Date.now(), clockOut: null, breakMin: 0, note: '' });
@@ -83,16 +84,32 @@ function MyTime({ canPunch }: { canPunch: boolean }) {
     } catch (e) { toast(errorText(e), 'error'); } finally { setBusy(false); }
   }
 
+  async function toggleBreak() {
+    if (!open) return;
+    setBusy(true);
+    try {
+      const t = Date.now();
+      if (open.breakStart) { await write('shifts', endBreak(open, t)); toast(`Back from a ${elapsedText(t - open.breakStart)} break`, 'success'); }
+      else { await write('shifts', { ...open, breakStart: t }); toast("On a break. Breaks aren't paid time.", 'success'); }
+    } catch (e) { toast(errorText(e), 'error'); } finally { setBusy(false); }
+  }
+
   return (
     <div className="stack lg">
-      <section className={`card pad-lg tc-status${open ? ' on' : ''}`} aria-label="Clock status">
+      <section className={`card pad-lg tc-status${open ? (open.breakStart ? ' break' : ' on') : ''}`} aria-label="Clock status">
         <div className="stack sm">
           <span className="row nowrap strong">
-            {open ? <><Clock aria-hidden="true" /> On shift since {fmt.time(open.clockIn)}{day(open.clockIn) !== fmt.today() ? `, ${fmt.date(open.clockIn)}` : ''}</> : "You're not clocked in"}
+            {open ? (open.breakStart
+              ? <><Coffee aria-hidden="true" /> On a break since {fmt.time(open.breakStart)}</>
+              : <><Clock aria-hidden="true" /> On shift since {fmt.time(open.clockIn)}{day(open.clockIn) !== fmt.today() ? `, ${fmt.date(open.clockIn)}` : ''}</>) : "You're not clocked in"}
           </span>
-          {open && <span className="tc-elapsed">{elapsedText(now - open.clockIn)}</span>}
+          {open && <span className="tc-elapsed">{elapsedText(now - (open.breakStart ?? open.clockIn))}</span>}
+          {open && open.breakMin > 0 && <span className="small muted">Breaks so far: {open.breakMin} min (not paid)</span>}
           {!canPunch && <span className="small muted">Your group doesn't use the time clock.</span>}
         </div>
+        {canPunch && open && (open.breakStart
+          ? <button className="btn xl success" disabled={busy} onClick={toggleBreak}><Play /> End break</button>
+          : <button className="btn xl outline" disabled={busy} onClick={toggleBreak}><Coffee /> Start break</button>)}
         {canPunch && (open
           ? <button className="btn xl danger solid" disabled={busy} onClick={punch}><LogOut /> Clock out</button>
           : <button className="btn xl success" disabled={busy} onClick={punch}><LogIn /> Clock in</button>)}
@@ -120,7 +137,7 @@ function MyTime({ canPunch }: { canPunch: boolean }) {
                     <td>{fmt.day(day(s.clockIn))}</td>
                     <td>{fmt.time(s.clockIn)}</td>
                     <td>{outText(fmt, s)}</td>
-                    <td className="num">{s.breakMin ? `${s.breakMin}m` : '—'}</td>
+                    <td className="num">{s.breakStart ? `${s.breakMin ? `${s.breakMin}m + ` : ''}on break` : s.breakMin ? `${s.breakMin}m` : '—'}</td>
                     <td className="num">{hoursText(shiftMinutes(s, now))}</td>
                     <td><span className="row nowrap"><FlagPill s={s} now={now} />{s.note && <span className="small muted">{s.note}</span>}</span></td>
                   </tr>
@@ -354,7 +371,7 @@ function ShiftDialog({ draft, users, why, fmt, onSaved, onClose }: {
     if (outT === inT) return toast('Clock-out must be after clock-in.', 'error');
     if (t.clockIn > Date.now() + 60_000 || (t.clockOut ?? 0) > Date.now() + 60_000) return toast("Times can't be in the future.", 'error');
     if (t.clockOut != null && min >= (t.clockOut - t.clockIn) / 60_000) return toast("The break can't be as long as the shift.", 'error');
-    const doc = { id: x?.id ?? uuid(), userId: user.id, clockIn: t.clockIn, clockOut: t.clockOut, breakMin: min, note: note.trim(), review: false };
+    const doc = { id: x?.id ?? uuid(), userId: user.id, clockIn: t.clockIn, clockOut: t.clockOut, breakMin: min, breakStart: x?.breakStart ?? null, note: note.trim(), review: false };
     setBusy(true);
     try {
       await write('shifts', doc);
