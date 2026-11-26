@@ -56,7 +56,9 @@ test('setup is guarded by the setup code and runs once', async () => {
     owner: { name: 'Olive Owner', email: 'owner@example.com', password: 'correct horse battery', pin: '1234' },
   });
   assert.equal((await call('POST', '/api/setup', {}, body('WRONG'))).status, 403);
-  assert.equal((await call('POST', '/api/setup', owner, body('testcode'))).status, 200);
+  assert.equal((await call('POST', '/api/setup', {}, body('TESTC0DX'))).status, 403, 'a different code is still refused');
+  // copying slips are forgiven: case, spaces, dashes, O typed for zero
+  assert.equal((await call('POST', '/api/setup', owner, body(' test-c0de '))).status, 200);
   assert.ok(owner.p0_sid && owner.p0_dev);
   assert.equal((await call('POST', '/api/setup', {}, body('TESTCODE'))).status, 409);
 });

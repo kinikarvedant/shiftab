@@ -171,7 +171,9 @@ export function authRoutes(app: FastifyInstance, ctx: Ctx) {
       owner: z.strictObject({ name: z.string().trim().min(1).max(60), email: Email, password: Password, pin: z.string().regex(PIN_RE, 'PIN must be 4-8 digits') }),
     }), req.body);
     if (!needsSetup(db)) fail(409, 'This venue is already set up.');
-    if (!safeEqual(body.code.trim().toUpperCase(), ctx.config.setupCode)) fail(403, 'Wrong setup code. It is printed in the server log.');
+    // forgive the usual copying slips: spaces, dashes, case, and O / I / L typed for 0 / 1 (codes are 0-9 and A-F)
+    const norm = (c: string) => c.toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+    if (!safeEqual(norm(body.code), norm(ctx.config.setupCode))) fail(403, 'Wrong setup code. Use the latest "First-run setup code" line in the server log.');
 
     const hash = await hashPassword(body.owner.password);
     const pin = makePin(body.owner.pin);
