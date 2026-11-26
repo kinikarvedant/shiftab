@@ -20,9 +20,10 @@ export interface AppState {
   totp: boolean;
   session: Session | null;
   passwordPrompt: boolean;     // show the email + password sign-in instead of the PIN tiles
+  demo: { email: string; password: string; pin: string } | null; // public demo server: its shared sign-in
 }
 
-let app: AppState = { ready: false, needsSetup: false, device: null, serverUserId: null, totp: false, session: null, passwordPrompt: false };
+let app: AppState = { ready: false, needsSetup: false, device: null, serverUserId: null, totp: false, session: null, passwordPrompt: false, demo: null };
 const subs = new Set<() => void>();
 const set = (p: Partial<AppState>) => { app = { ...app, ...p }; subs.forEach((f) => f()); };
 export const useApp = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, () => app);
@@ -35,13 +36,13 @@ setSignerSource((): Signer | null => app.session ? { userId: app.session.user.id
 export async function refreshState(): Promise<boolean> {
   try {
     await flushLogout();
-    const s = await api<{ needsSetup: boolean; device: Device | null; user: { id: string } | null; totp: boolean; instance?: string }>('GET', '/api/state', undefined, 5_000);
+    const s = await api<{ needsSetup: boolean; device: Device | null; user: { id: string } | null; totp: boolean; instance?: string; demo?: AppState['demo'] }>('GET', '/api/state', undefined, 5_000);
     // The server was reset to a fresh database (e.g. for a demo): this device's copy belongs to the old one. Start clean.
     const known = await getMeta<string>('instance');
     if (s.instance && known && known !== s.instance) { await forgetLocalData(); return true; }
     if (s.instance && known !== s.instance) await setMeta('instance', s.instance);
     await setMeta('device', s.device);
-    set({ needsSetup: s.needsSetup, device: s.device, serverUserId: s.user?.id ?? null, totp: s.totp });
+    set({ needsSetup: s.needsSetup, device: s.device, serverUserId: s.user?.id ?? null, totp: s.totp, demo: s.demo ?? null });
     if (app.session?.level === 'password' && app.session.user.id !== s.user?.id) set({ session: null }); // server session ended
     return true;
   } catch (e) {

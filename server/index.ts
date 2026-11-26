@@ -12,6 +12,7 @@ import { authRoutes, type Config, type Ctx } from './auth.ts';
 import { syncRoutes } from './sync.ts';
 import { staffRoutes } from './staff.ts';
 import { financeRoutes } from './finance.ts';
+import { DEMO, startDemo } from './demo.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -126,6 +127,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     production,
     trustProxy: !!process.env.TRUST_PROXY,
   });
+  if (DEMO) await startDemo(app, ctx); // sample venue, rebuilt about once an hour
   const port = Number(process.env.PORT ?? 8080);
   const host = process.env.HOST ?? '127.0.0.1';
   await app.listen({ port, host });

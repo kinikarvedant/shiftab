@@ -163,6 +163,26 @@ one (see Backups) to undo a reset. Devices that were set up before notice the re
 sign in with a password and enrol them again. For regular demos, a second service (for example
 `shiftab-demo`) keeps the real venue out of harm's way.
 
+## Public demo (`DEMO=1`)
+
+`DEMO=1` turns a deployment into a public sandbox (`server/demo.ts`). Never set it on a real venue's
+service: it wipes the database on every start.
+
+- It seeds a sample bistro through the normal setup and staff APIs, then writes four weeks of made-up
+  orders, payments and shifts, pay rates, rent and stock costs, four tables mid-service and today's bookings.
+- The sign-in (`owner@shiftab.example` / `shiftab-demo`, every PIN `1234`) is served by `/api/state` and
+  filled in on the sign-in screen.
+- So one visitor can't spoil it for the next: password changes, 2FA, back-office logins, photo and logo
+  uploads are refused, and failed sign-ins never lock the account (the per-IP limit still applies).
+- It rebuilds itself once it is an hour old and nobody has done anything for 10 minutes, or at 3 hours
+  regardless. Devices notice the new database and start clean.
+
+```sh
+railway add --service shiftab-demo --variables "DEMO=1"   # no volume needed
+railway domain --service shiftab-demo --port 8080
+railway up --service shiftab-demo
+```
+
 ## 8. Updating
 
 ```sh

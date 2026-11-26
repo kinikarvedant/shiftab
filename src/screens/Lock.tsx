@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, Coffee, LogIn, LogOut, KeyRound, ArrowRight, Play, UserRoundX } from 'lucide-react';
 import { table } from '../lib/db.ts';
-import { checkPin, pinLockedFor, startPinSession } from '../lib/session.ts';
+import { checkPin, pinLockedFor, startPinSession, useApp } from '../lib/session.ts';
 import { write, type Signer } from '../lib/sync.ts';
 import { elapsedText, useFmt, useNow, uuid } from '../lib/format.ts';
 import { photoFromFile } from '../lib/photo.ts';
@@ -18,6 +18,7 @@ import './screens.css';
 const WORK_PERMS: Permission[] = ['pos.use', 'kitchen.view', 'reservations.manage', 'menu.manage', 'floor.manage', 'timeclock.manage'];
 
 export function Lock({ onPassword }: { onPassword: () => void }) {
+  const { demo } = useApp();
   const fmt = useFmt();
   const now = useNow(1_000);
   const users = useLiveQuery(() => table('users').filter((u) => u.active && !!u.pinCheck).toArray(), [], []);
@@ -121,7 +122,7 @@ export function Lock({ onPassword }: { onPassword: () => void }) {
       </section>
 
       <footer className="lock-foot">
-        <span className="small muted">Tap your name, then enter your PIN.</span>
+        <span className="small muted">Tap your name, then enter your PIN.{demo && ` In this demo every PIN is ${demo.pin}.`}</span>
         <button className="btn outline" onClick={onPassword}><KeyRound /> Manager sign-in</button>
       </footer>
 

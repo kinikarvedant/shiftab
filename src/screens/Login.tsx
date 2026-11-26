@@ -1,14 +1,15 @@
 // Password (+2FA) sign-in for managers and owners. Works offline as a read-only unlock of cached reports.
 import { useState } from 'react';
 import { KeyRound, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react';
-import { NeedTotp, passwordLogin } from '../lib/session.ts';
+import { NeedTotp, passwordLogin, useApp } from '../lib/session.ts';
 import { errorText } from '../lib/api.ts';
 import { useSyncState } from '../lib/sync.ts';
 import { BrandMark } from '../ui/index.tsx';
 
 export function Login({ onBack }: { onBack?: () => void }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { demo } = useApp();
+  const [email, setEmail] = useState(demo?.email ?? '');
+  const [password, setPassword] = useState(demo?.password ?? '');
   const [totp, setTotp] = useState('');
   const [needTotp, setNeedTotp] = useState(false);
   const [error, setError] = useState('');
@@ -29,6 +30,8 @@ export function Login({ onBack }: { onBack?: () => void }) {
     <main className="center-page">
       <form className="card pad-lg auth-card stack lg" onSubmit={submit}>
         <div className="hero-mark"><BrandMark /><div><h1>Sign in</h1><p className="muted">Managers and owners: reports, payroll, staff and settings.</p></div></div>
+        {demo && <div className="banner"><span>Demo venue with made-up sample data, so the sign-in is filled in for you. It starts fresh about once an hour.
+          To try the staff PIN screen, tap <strong>Enrol device</strong> in the top bar after signing in. Every PIN is {demo.pin}.</span></div>}
         {!online && <div className="banner warning">Offline — you can still open reports saved on this device.</div>}
         <label className="field"><span>Email</span><input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus /></label>
         <label className="field"><span>Password</span><input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>

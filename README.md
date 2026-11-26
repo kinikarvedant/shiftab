@@ -22,6 +22,18 @@ and bars — built as a template other businesses can extend.
   discounts, refunds and timesheet edits, finance data encrypted at rest on the server and on
   devices, append-only audit log. See [PLAN.md §5](PLAN.md#5-security-model).
 
+**Try it:** [shiftab-demo-production.up.railway.app](https://shiftab-demo-production.up.railway.app), a sample bistro
+with four weeks of made-up trading. The sign-in is filled in for you, every staff PIN is 1234, and it starts fresh
+about once an hour.
+
+| | |
+|---|---|
+| ![Floor plan: live table states and running totals](docs/screenshots/floor.png) | ![Order screen with the kitchen status of each line](docs/screenshots/order.png) |
+| ![Kitchen display: tickets turn amber at 8 minutes and red at 12](docs/screenshots/kitchen.png) | ![Reports: revenue, wages, labour %, other costs and profit](docs/screenshots/reports.png) |
+| ![Team timesheet for the week](docs/screenshots/time.png) | ![Staff with roles and kitchen stations](docs/screenshots/staff.png) |
+
+<p align="center"><img src="docs/screenshots/phone-floor.png" width="260" alt="The floor plan on a phone"></p>
+
 ## Quick start (development)
 
 Requires **Node.js ≥ 22.18**.
@@ -39,8 +51,9 @@ npm run dev:server   # API on :8080
 npm run dev:client   # Vite on :5173, proxies /api
 ```
 
-Tests: `npm test` (money, business-day/overtime maths, permissions, and end-to-end API
-authorisation against a temporary database). Type-check: `npm run typecheck`.
+Tests: `npm test` (money, business-day/overtime maths, permissions, end-to-end API
+authorisation against a temporary database, and the public demo). Type-check: `npm run typecheck`.
+Demo mode: `DEMO=1 npm start` (see [docs/DEPLOY.md](docs/DEPLOY.md#public-demo-demo1)).
 
 ## Documents
 

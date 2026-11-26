@@ -9,6 +9,7 @@ import type { Db } from './db.ts';
 import { can, outranks, PERMISSIONS, type AuthLevel, type Permission } from '../shared/permissions.ts';
 import { COLLECTIONS, Mutation, signingString, type CollectionName, type GroupDoc, type UserDoc } from '../shared/schema.ts';
 import { orderTotals, paidSum } from '../shared/money.ts';
+import { DEMO } from './demo.ts';
 
 interface Actor { id: string; user: UserDoc; group: GroupDoc & { id: string }; level: AuthLevel; device: string | null; can(p: Permission): boolean }
 interface RuleCtx {
@@ -39,6 +40,7 @@ function refExists(db: Db, c: CollectionName, id: string | null | undefined, lab
 const RULES: Record<CollectionName, Rule> = {
   settings: (x) => {
     if (x.m.id !== 'business' || x.m.op !== 'put') return 'Invalid settings change.';
+    if (DEMO && x.next.brand.logo && x.next.brand.logo !== x.prev?.brand?.logo) return 'Logo uploads are turned off in the demo.';
     const r = need('settings.manage')(x);
     if (!r) x.audit('settings.changed', Object.keys(x.next).filter((k) => !same(x.next[k], x.prev?.[k])));
     return r;
@@ -46,6 +48,7 @@ const RULES: Record<CollectionName, Rule> = {
   groups: () => 'Groups are changed from the Staff screen (needs a connection).',
   users: () => 'Staff are changed from the Staff screen (needs a connection).',
   photos: (x) => {
+    if (DEMO) return 'Photo uploads are turned off in the demo.';
     if (x.db.live('items', x.m.id)) return need('menu.manage')(x); // a dish photo
     if (!x.db.live('users', x.m.id)) return 'Unknown employee or dish.';
     return x.m.id === x.actor.id || x.actor.can('staff.manage') ? null : 'You can only change your own photo.';
@@ -406,16 +409,25 @@ export function syncRoutes(app: FastifyInstance, ctx: Ctx) {
       (db.raw.prepare("SELECT id FROM docs WHERE collection = 'orders' AND deleted = 0 AND json_extract(data, '$.status') = 'open'").all() as any[]).map((r) => r.id),
     );
     const keep = (c: CollectionName, d: any, updatedAt: number) => isVisible(c, d, updatedAt, cutoff, (id) => openOrders.has(id));
-    const rows = db.since(since, limit + 1);
     const docs = [];
-    for (const r of rows.slice(0, limit)) {
-      if (r.deleted) { docs.push({ c: r.collection, id: r.id, seq: r.seq, deleted: true }); continue; }
-      if (COLLECTIONS[r.collection].windowed && !keep(r.collection, r.data, r.updatedAt)) continue;
-      const data = r.collection === 'users' && !seeEmails ? { ...r.data, email: null } : r.data;
-      docs.push({ c: r.collection, id: r.id, seq: r.seq, data: { ...data, id: r.id, updatedAt: r.updatedAt, updatedBy: r.updatedBy } });
+    let cursor = since;
+    // A new device skips the history it doesn't keep here, not one round trip per 500 old rows: scan on (up to a
+    // bound) until the page is full.
+    for (let scanned = 0; docs.length < limit && scanned < 50_000;) {
+      const rows = db.since(cursor, limit);
+      if (!rows.length) break;
+      scanned += rows.length;
+      for (const r of rows) {
+        cursor = r.seq;
+        if (r.deleted) docs.push({ c: r.collection, id: r.id, seq: r.seq, deleted: true });
+        else if (!COLLECTIONS[r.collection].windowed || keep(r.collection, r.data, r.updatedAt)) {
+          const data = r.collection === 'users' && !seeEmails ? { ...r.data, email: null } : r.data;
+          docs.push({ c: r.collection, id: r.id, seq: r.seq, data: { ...data, id: r.id, updatedAt: r.updatedAt, updatedBy: r.updatedBy } });
+        }
+        if (docs.length >= limit) break;
+      }
     }
-    const cursor = rows.length ? rows[Math.min(rows.length, limit) - 1].seq : since;
-    return { docs, cursor, more: rows.length > limit };
+    return { docs, cursor, more: db.since(cursor, 1).length > 0 };
   });
 
   app.get('/api/events', (req, reply) => {

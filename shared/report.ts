@@ -151,14 +151,16 @@ export function buildReport(ds: Dataset, from: string, to: string, now = Date.no
     }
   }
 
-  // Other costs: each day gets its share (only the days inside the range are walked)
+  // Other costs: each day gets its share (only the days inside the range are walked). Days that haven't happened
+  // yet get nothing, so this week's profit isn't charged for rent on Sunday before Sunday's takings exist.
+  const today = day(now);
   const costs: Report['costs'] = [];
   for (const e of ds.expenses ?? []) {
     let inRange = 0;
     const start = dayNo(e.day);
     for (let k = Math.max(0, dayNo(from) - start); k < Math.min(e.spreadDays, dayNo(to) - start + 1); k++) {
       const row = days.get(addDays(e.day, k));
-      if (row) { row.costs += share(e, k); inRange += share(e, k); }
+      if (row && row.date <= today) { row.costs += share(e, k); inRange += share(e, k); }
     }
     if (inRange > 0) costs.push({ ...e, inRange });
   }

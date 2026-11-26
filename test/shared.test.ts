@@ -145,15 +145,18 @@ test('report: other costs, spread evenly over their days, come off profit', () =
     { id: 'e1', day: '2026-11-23', spreadDays: 1, category: 'Ingredients & stock', description: 'Veg order', amount: 4_000 },
     { id: 'e2', day: '2026-11-20', spreadDays: 7, category: 'Equipment', description: 'Blender', amount: 701 }, // 101,100,100,…
   ];
-  const r = buildReport(ds, '2026-11-23', '2026-11-29');
+  const after = Date.parse('2026-12-01T12:00:00Z');
+  const r = buildReport(ds, '2026-11-23', '2026-11-29', after);
   const d23 = r.days.find((d) => d.date === '2026-11-23')!;
   // e2 started on the 20th: its 4th day (k=3, 100) lands on the 23rd; days 24–26 get 100 each
   assert.equal(d23.costs, 4_000 + 100);
   assert.equal(d23.profit, d23.revenue - d23.labourCost - d23.costs);
   assert.equal(r.totals.costs, 4_000 + 4 * 100);
   assert.deepEqual(r.costs.map((c) => [c.id, c.inRange]), [['e2', 400], ['e1', 4_000]]);
-  const whole = buildReport(ds, '2026-11-20', '2026-11-26');
+  const whole = buildReport(ds, '2026-11-20', '2026-11-26', after);
   assert.equal(whole.totals.costs, 4_000 + 701, 'over the whole spread the cent split adds back up exactly');
+  const midWeek = buildReport(ds, '2026-11-23', '2026-11-29', Date.parse('2026-11-24T12:00:00Z'));
+  assert.equal(midWeek.totals.costs, 4_000 + 2 * 100, "days that haven't happened yet carry no cost");
 });
 
 test('report: long ranges group by week or month', () => {

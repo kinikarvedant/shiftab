@@ -9,6 +9,7 @@ import {
 import { can, DEFAULT_GROUPS, type Permission } from '../shared/permissions.ts';
 import { DEFAULT_SETTINGS, PIN_RE, Settings, type GroupDoc, type UserDoc } from '../shared/schema.ts';
 import { PRESETS } from '../shared/presets.ts';
+import { DEMO, demoInfo } from './demo.ts';
 
 export interface Config { production: boolean; dataDir: string; setupCode: string }
 export interface Ctx { db: Db; config: Config; broadcast: () => void }
@@ -147,7 +148,7 @@ export function authRoutes(app: FastifyInstance, ctx: Ctx) {
   const credLimit = limiter(10, 15 * 60_000);
   const limitIp = (req: FastifyRequest) => { if (!credLimit(req.ip)) fail(429, 'Too many attempts. Try again in a few minutes.'); };
 
-  const instance = (db.raw.prepare("SELECT value FROM meta WHERE key = 'instance'").get() as { value: string }).value;
+  const instanceQ = db.raw.prepare("SELECT value FROM meta WHERE key = 'instance'");
   app.get('/api/state', async (req) => {
     const { session, device } = getCaller(ctx, req);
     const ug = session ? userAndGroup(db, session.userId) : null;
@@ -156,8 +157,9 @@ export function authRoutes(app: FastifyInstance, ctx: Ctx) {
       device,
       user: ug?.user.active ? { id: ug.user.id, name: ug.user.name, groupId: ug.user.groupId, email: ug.user.email } : null,
       totp: session?.totp ?? false,
-      instance, // changes only when the database is replaced by a fresh one
+      instance: (instanceQ.get() as { value: string }).value, // changes only when the database is replaced by a fresh one
       now: Date.now(),
+      demo: demoInfo(), // public demo: the sign-in every visitor uses
     };
   });
 
@@ -221,7 +223,7 @@ export function authRoutes(app: FastifyInstance, ctx: Ctx) {
     const cred = db.raw.prepare('SELECT * FROM credentials WHERE email = ?').get(body.email) as any;
     const now = Date.now();
     const deny = (msg = 'Wrong email or password.') => {
-      if (cred) {
+      if (cred && !DEMO) { // the demo's sign-in is public: a stranger mustn't be able to lock it for everyone
         const r = db.raw.prepare('UPDATE credentials SET failed = failed + 1 WHERE user_id = ? RETURNING failed').get(cred.user_id) as any;
         if (r.failed >= 5) db.raw.prepare('UPDATE credentials SET failed = 0, locked_until = ? WHERE user_id = ?').run(now + 15 * 60_000, cred.user_id);
       }
